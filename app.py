@@ -544,38 +544,38 @@ with tab2:
                             }
                         </style>
                         <script>
-                        setTimeout(function() {
+                        setTimeout(function() {{
                             // 2초 후 오버레이 활성화 (애니메이션 얼추 돌았을 때)
                             const overlay = document.getElementById('click-overlay');
-                            if (overlay) {
+                            if (overlay) {{
                                 overlay.style.display = 'block';
                                 
                                 // 클릭 이벤트
-                                overlay.addEventListener('click', function() {
+                                overlay.addEventListener('click', function() {{
                                     const btn = document.querySelector('button[kind="primary"]');
                                     // 버튼 텍스트가 '결과 보기'를 포함하는지 확인 (정확도 높임)
                                     // 만약 버튼이 여러개면 loop로 찾기
                                     const btns = document.querySelectorAll('button[kind="primary"]');
-                                    for (let b of btns) {
-                                        if (b.innerText.includes('결과 보기')) {
+                                    for (let b of btns) {{
+                                        if (b.innerText.includes('결과 보기')) {{
                                             b.click();
                                             break;
-                                        }
-                                    }
-                                });
+                                        }}
+                                    }}
+                                }});
                                 
                                 // 키보드 이벤트 (window 전체)
-                                window.addEventListener('keydown', function(e) {
+                                window.addEventListener('keydown', function(e) {{
                                      const btns = document.querySelectorAll('button[kind="primary"]');
-                                    for (let b of btns) {
-                                        if (b.innerText.includes('결과 보기')) {
+                                    for (let b of btns) {{
+                                        if (b.innerText.includes('결과 보기')) {{
                                             b.click();
                                             break;
-                                        }
-                                    }
-                                }, {once: true});
-                            }
-                        }, 2000);
+                                        }}
+                                    }}
+                                }}, {{once: true}});
+                            }}
+                        }}, 2000);
                         </script>
                     ''', unsafe_allow_html=True)
                 else:
