@@ -291,12 +291,12 @@ with tab2:
                 
                 # 메뉴 이름 텍스트
                 try:
-                    font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 100)
+                    font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 180)
                 except:
                     try:
-                        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/AppleGothic.ttf", 100)
+                        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/AppleGothic.ttf", 180)
                     except:
-                        font = ImageFont.load_default()
+                        font = ImageFont.truetype("/Library/Fonts/Arial Unicode.ttf", 180)
                 
                 text = picked['name']
                 bbox = draw.textbbox((0, 0), text, font=font)
@@ -305,9 +305,10 @@ with tab2:
                 text_x = (900 - text_width) // 2
                 text_y = (900 - text_height) // 2
                 
-                # 텍스트 외곽선
-                for adj_x in range(-8, 9):
-                    for adj_y in range(-8, 9):
+                # 텍스트 외곽선 (더 두껍게)
+                outline_width = 12
+                for adj_x in range(-outline_width, outline_width+1):
+                    for adj_y in range(-outline_width, outline_width+1):
                         draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
                 
                 # 텍스트 본체
@@ -317,9 +318,6 @@ with tab2:
                 buffer = io.BytesIO()
                 img.save(buffer, format='PNG')
                 table_back = base64.b64encode(buffer.getvalue()).decode()
-                
-                # 디버깅: 성공 메시지
-                st.write(f"✅ 뒷면 이미지 생성 성공: {text}")
             except Exception as e:
                 st.error(f"❌ 뒷면 이미지 생성 실패: {e}")
                 table_back = ""
@@ -450,9 +448,12 @@ with tab2:
                     
                     # 메뉴 이름 텍스트
                     try:
-                        font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 100)
+                        font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 180)
                     except:
-                        font = ImageFont.load_default()
+                        try:
+                            font = ImageFont.truetype("/System/Library/Fonts/Supplemental/AppleGothic.ttf", 180)
+                        except:
+                            font = ImageFont.truetype("/Library/Fonts/Arial Unicode.ttf", 180)
                     
                     text = winner['name']
                     bbox = draw.textbbox((0, 0), text, font=font)
@@ -461,9 +462,10 @@ with tab2:
                     text_x = (900 - text_width) // 2
                     text_y = (900 - text_height) // 2
                     
-                    # 텍스트 외곽선
-                    for adj_x in range(-8, 9):
-                        for adj_y in range(-8, 9):
+                    # 텍스트 외곽선 (더 두껍게)
+                    outline_width = 12
+                    for adj_x in range(-outline_width, outline_width+1):
+                        for adj_y in range(-outline_width, outline_width+1):
                             draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
                     
                     # 텍스트 본체
@@ -474,7 +476,7 @@ with tab2:
                     img.save(buffer, format='PNG')
                     table_back = base64.b64encode(buffer.getvalue()).decode()
                 except Exception as e:
-                    print(f"뒷면 이미지 생성 실패: {e}")
+                    st.error(f"❌ 뒷면 이미지 생성 실패: {e}")
                     table_back = ""
 
                 # Animation: 3D Flip Card
