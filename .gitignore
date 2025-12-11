@@ -37,6 +37,4 @@ venv/
 # Data (Optional - usually better not to commit personal data like keys/history if public)
 config.json
 lunch_history.csv
-menus.json
-# Note: menus.json contains your data. Remove it from here if you want to back it up to GitHub.
-# For now, I will NOT ignore menus.json so your data goes up.
+# menus.json is now tracked for deployment

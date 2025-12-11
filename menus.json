@@ -1,0 +1,182 @@
+[
+    {
+        "name": "직화한상",
+        "area": "회사 지하식당",
+        "tags": [
+            "rice",
+            "meat",
+            "heavy",
+            "hot"
+        ],
+        "category": "한식",
+        "cuisine": "한식"
+    },
+    {
+        "name": "완백부대찌개",
+        "area": "회사 지하식당",
+        "tags": [
+            "soup",
+            "spicy",
+            "heavy",
+            "hot"
+        ],
+        "category": "부대찌개",
+        "cuisine": "한식"
+    },
+    {
+        "name": "33떡볶이",
+        "area": "회사 지하식당",
+        "tags": [
+            "spicy",
+            "light"
+        ],
+        "category": "분식",
+        "cuisine": "분식"
+    },
+    {
+        "name": "101번지 돈까스",
+        "area": "회사 지하식당",
+        "tags": [
+            "meat",
+            "heavy"
+        ],
+        "category": "돈까스",
+        "cuisine": "양식"
+    },
+    {
+        "name": "비가오면 (우동/짜장)",
+        "area": "회사 지하식당",
+        "tags": [
+            "noodle",
+            "hot",
+            "soup"
+        ],
+        "category": "면요리",
+        "cuisine": "일식"
+    },
+    {
+        "name": "포머이 쌀국수",
+        "area": "회사 지하식당",
+        "tags": [
+            "noodle",
+            "soup",
+            "hot",
+            "light"
+        ],
+        "category": "쌀국수",
+        "cuisine": "기타"
+    },
+    {
+        "name": "나연",
+        "area": "회사 지하식당",
+        "tags": [
+            "rice",
+            "heavy",
+            "hot"
+        ],
+        "category": "한식",
+        "cuisine": "한식"
+    },
+    {
+        "name": "함박함박",
+        "area": "회사 지하식당",
+        "category": "양식",
+        "cuisine": "양식",
+        "tags": [
+            "meat",
+            "hot"
+        ]
+    },
+    {
+        "name": "검은도마",
+        "area": "회사 지하식당",
+        "tags": [
+            "meat",
+            "heavy",
+            "hot"
+        ],
+        "category": "한식",
+        "cuisine": "한식"
+    },
+    {
+        "name": "크라잉버거",
+        "area": "회사 지하식당",
+        "tags": [
+            "meat",
+            "heavy"
+        ],
+        "category": "햄버거",
+        "cuisine": "양식"
+    },
+    {
+        "name": "추천해 꼬막짬뽕",
+        "area": "회사 지하식당",
+        "tags": [
+            "noodle",
+            "soup",
+            "spicy",
+            "hot"
+        ],
+        "category": "짬뽕",
+        "cuisine": "중식"
+    },
+    {
+        "name": "현대옥 콩나물국밥",
+        "area": "YTN 지하식당",
+        "tags": [
+            "rice",
+            "soup",
+            "hot",
+            "light"
+        ],
+        "category": "국밥",
+        "cuisine": "한식"
+    },
+    {
+        "name": "오로지 닭곰탕",
+        "area": "YTN 지하식당",
+        "tags": [
+            "rice",
+            "soup",
+            "hot",
+            "light",
+            "meat"
+        ],
+        "category": "곰탕",
+        "cuisine": "한식"
+    },
+    {
+        "name": "나주곰탕",
+        "area": "건너편 먹자골목",
+        "tags": [
+            "rice",
+            "soup",
+            "hot",
+            "meat"
+        ],
+        "category": "곰탕",
+        "cuisine": "한식"
+    },
+    {
+        "name": "먹자골목 떡볶이",
+        "area": "건너편 먹자골목",
+        "tags": [
+            "spicy",
+            "light"
+        ],
+        "category": "분식",
+        "cuisine": "분식"
+    },
+    {
+        "name": "피슈 마라홍탕",
+        "area": "건너편 먹자골목",
+        "tags": [
+            "soup",
+            "spicy",
+            "hot",
+            "heavy"
+        ],
+        "category": "마라탕",
+        "cuisine": "중식"
+    }
+]
