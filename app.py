@@ -302,7 +302,8 @@ with tab2:
                     try:
                         font = ImageFont.truetype(path, 180)
                         break
-                    except:
+                    except Exception as e:
+                        print(f"폰트 로드 실패: {path} - {e}")
                         continue
                 
                 if font is None:
@@ -463,10 +464,11 @@ with tab2:
                     # 메뉴 이름 텍스트
                     font = None
                     font_paths = [
-                        "/System/Library/Fonts/Supplemental/AppleGothic.ttf",  # 1순위: TTF
-                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",          # 2순위: TTC
-                        "/System/Library/Fonts/Supplemental/NotoSansGothic-Regular.ttf",
-                        "/Library/Fonts/Arial Unicode.ttf"
+                        "/System/Library/Fonts/Supplemental/AppleGothic.ttf", 
+                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+                        "/Library/Fonts/Arial Unicode.ttf",
+                        "/System/Library/Fonts/Helvetica.ttc",
+                        "/System/Library/Fonts/Supplemental/Arial.ttf"
                     ]
                     
                     for path in font_paths:
@@ -477,22 +479,32 @@ with tab2:
                             continue
                     
                     if font is None:
-                        font = ImageFont.load_default()
+                        try:
+                             font = ImageFont.truetype("Arial", 180)
+                        except:
+                            font = ImageFont.load_default()
                     
                     text = winner['name']
-                    bbox = draw.textbbox((0, 0), text, font=font)
-                    text_width = bbox[2] - bbox[0]
-                    text_height = bbox[3] - bbox[1]
+                    try:
+                        bbox = draw.textbbox((0, 0), text, font=font)
+                        text_width = bbox[2] - bbox[0]
+                        text_height = bbox[3] - bbox[1]
+                    except:
+                        text_width = 100
+                        text_height = 50
+                    
                     text_x = (900 - text_width) // 2
                     text_y = (900 - text_height) // 2
                     
                     # 텍스트 외곽선 (더 두껍게)
-                    # 기본 폰트가 아닐 때만 외곽선 그리기
-                    if font.size > 20:
-                        outline_width = 12
-                        for adj_x in range(-outline_width, outline_width+1):
-                            for adj_y in range(-outline_width, outline_width+1):
-                                draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
+                    try:
+                        if getattr(font, 'size', 0) > 20: 
+                            outline_width = 12
+                            for adj_x in range(-outline_width, outline_width+1):
+                                for adj_y in range(-outline_width, outline_width+1):
+                                    draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
+                    except:
+                        pass
                     
                     # 텍스트 본체
                     draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
@@ -518,24 +530,52 @@ with tab2:
                                 </div>
                             </div>
                         </div>
+                        <div class="click-overlay" id="click-overlay"></div>
+                        <style>
+                            .click-overlay {
+                                position: fixed;
+                                top: 0;
+                                left: 0;
+                                width: 100vw;
+                                height: 100vh;
+                                z-index: 10000; /* 밥상보다 위에 */
+                                cursor: pointer;
+                                display: none; /* 처음엔 숨김 */
+                            }
+                        </style>
                         <script>
-                        // 아무 곳이나 클릭하거나 키보드 누르면 결과 보기 버튼 자동 클릭
-                        setTimeout(function() {{
-                            function autoClick() {{
-                                const btn = document.querySelector('button[kind="primary"]');
-                                if (btn && btn.innerText.includes('결과 보기')) {{
-                                    btn.click();
-                                }}
-                                // 이벤트 제거
-                                document.removeEventListener('click', autoClick);
-                                document.removeEventListener('keydown', autoClick);
-                            }}
-                            
-                            // 클릭 이벤트 리스너
-                            document.addEventListener('click', autoClick);
-                            // 키보드 이벤트 리스너
-                            document.addEventListener('keydown', autoClick);
-                        }}, 2000); // 2초 후 (애니메이션 완료 후)
+                        setTimeout(function() {
+                            // 2초 후 오버레이 활성화 (애니메이션 얼추 돌았을 때)
+                            const overlay = document.getElementById('click-overlay');
+                            if (overlay) {
+                                overlay.style.display = 'block';
+                                
+                                // 클릭 이벤트
+                                overlay.addEventListener('click', function() {
+                                    const btn = document.querySelector('button[kind="primary"]');
+                                    // 버튼 텍스트가 '결과 보기'를 포함하는지 확인 (정확도 높임)
+                                    // 만약 버튼이 여러개면 loop로 찾기
+                                    const btns = document.querySelectorAll('button[kind="primary"]');
+                                    for (let b of btns) {
+                                        if (b.innerText.includes('결과 보기')) {
+                                            b.click();
+                                            break;
+                                        }
+                                    }
+                                });
+                                
+                                // 키보드 이벤트 (window 전체)
+                                window.addEventListener('keydown', function(e) {
+                                     const btns = document.querySelectorAll('button[kind="primary"]');
+                                    for (let b of btns) {
+                                        if (b.innerText.includes('결과 보기')) {
+                                            b.click();
+                                            break;
+                                        }
+                                    }
+                                }, {once: true});
+                            }
+                        }, 2000);
                         </script>
                     ''', unsafe_allow_html=True)
                 else:
