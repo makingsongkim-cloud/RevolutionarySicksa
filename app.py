@@ -290,13 +290,23 @@ with tab2:
                 draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
                 
                 # 메뉴 이름 텍스트
-                try:
-                    font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 180)
-                except:
+                font = None
+                font_paths = [
+                    "/System/Library/Fonts/Supplemental/AppleGothic.ttf",  # 1순위: TTF (안정적)
+                    "/System/Library/Fonts/AppleSDGothicNeo.ttc",          # 2순위: TTC
+                    "/System/Library/Fonts/Supplemental/NotoSansGothic-Regular.ttf",
+                    "/Library/Fonts/Arial Unicode.ttf"
+                ]
+                
+                for path in font_paths:
                     try:
-                        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/AppleGothic.ttf", 180)
+                        font = ImageFont.truetype(path, 180)
+                        break
                     except:
-                        font = ImageFont.truetype("/Library/Fonts/Arial Unicode.ttf", 180)
+                        continue
+                
+                if font is None:
+                    font = ImageFont.load_default() # 최후의 수단
                 
                 text = picked['name']
                 bbox = draw.textbbox((0, 0), text, font=font)
@@ -307,9 +317,11 @@ with tab2:
                 
                 # 텍스트 외곽선 (더 두껍게)
                 outline_width = 12
-                for adj_x in range(-outline_width, outline_width+1):
-                    for adj_y in range(-outline_width, outline_width+1):
-                        draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
+                # 기본 폰트가 아닐 때만 외곽선 그리기 (기본 폰트는 너무 작아서 외곽선 그리면 뭉개짐)
+                if font.size > 20: 
+                    for adj_x in range(-outline_width, outline_width+1):
+                        for adj_y in range(-outline_width, outline_width+1):
+                            draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
                 
                 # 텍스트 본체
                 draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
@@ -319,7 +331,9 @@ with tab2:
                 img.save(buffer, format='PNG')
                 table_back = base64.b64encode(buffer.getvalue()).decode()
             except Exception as e:
-                st.error(f"❌ 뒷면 이미지 생성 실패: {e}")
+                # 치명적 오류 시에도 빈 문자열 대신 텍스트 없는 이미지를 시도하거나
+                # 여기서는 어쩔 수 없이 에러 처리하지만, 위에서 폰트 로딩 실패는 다 잡았으므로 이쪽으로 올 확률 적음
+                print(f"뒷면 이미지 생성 중 치명적 오류: {e}") 
                 table_back = ""
 
             # Animation: 3D Flip Card
@@ -447,13 +461,23 @@ with tab2:
                     draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
                     
                     # 메뉴 이름 텍스트
-                    try:
-                        font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 180)
-                    except:
+                    font = None
+                    font_paths = [
+                        "/System/Library/Fonts/Supplemental/AppleGothic.ttf",  # 1순위: TTF
+                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",          # 2순위: TTC
+                        "/System/Library/Fonts/Supplemental/NotoSansGothic-Regular.ttf",
+                        "/Library/Fonts/Arial Unicode.ttf"
+                    ]
+                    
+                    for path in font_paths:
                         try:
-                            font = ImageFont.truetype("/System/Library/Fonts/Supplemental/AppleGothic.ttf", 180)
+                            font = ImageFont.truetype(path, 180)
+                            break
                         except:
-                            font = ImageFont.truetype("/Library/Fonts/Arial Unicode.ttf", 180)
+                            continue
+                    
+                    if font is None:
+                        font = ImageFont.load_default()
                     
                     text = winner['name']
                     bbox = draw.textbbox((0, 0), text, font=font)
@@ -463,10 +487,12 @@ with tab2:
                     text_y = (900 - text_height) // 2
                     
                     # 텍스트 외곽선 (더 두껍게)
-                    outline_width = 12
-                    for adj_x in range(-outline_width, outline_width+1):
-                        for adj_y in range(-outline_width, outline_width+1):
-                            draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
+                    # 기본 폰트가 아닐 때만 외곽선 그리기
+                    if font.size > 20:
+                        outline_width = 12
+                        for adj_x in range(-outline_width, outline_width+1):
+                            for adj_y in range(-outline_width, outline_width+1):
+                                draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
                     
                     # 텍스트 본체
                     draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
@@ -476,7 +502,7 @@ with tab2:
                     img.save(buffer, format='PNG')
                     table_back = base64.b64encode(buffer.getvalue()).decode()
                 except Exception as e:
-                    st.error(f"❌ 뒷면 이미지 생성 실패: {e}")
+                    print(f"뒷면 이미지 생성 중 치명적 오류: {e}")
                     table_back = ""
 
                 # Animation: 3D Flip Card
