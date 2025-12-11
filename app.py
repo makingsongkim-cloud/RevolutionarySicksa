@@ -22,23 +22,63 @@ if 'history' not in st.session_state:
 # Custom CSS for styling and animation
 st.markdown("""
 <style>
-    @keyframes spin {
-        0% { transform: translate(-50%, -50%) rotateY(0deg); }
-        100% { transform: translate(-50%, -50%) rotateY(1080deg); }
+    @keyframes spin3d {
+        0% { transform: rotateY(0deg); }
+        50% { transform: rotateY(720deg); }
+        100% { transform: rotateY(1440deg); }
     }
-    .spinning-img {
-        width: 450px !important;
-        height: 450px !important;
+    
+    .flip-container {
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+        width: 450px;
+        height: 450px;
         z-index: 9999;
-        display: block;
-        border-radius: 50%; /* Make it round */
-        box-shadow: 0 10px 25px rgba(0,0,0,0.5); /* Add shadow for depth */
-        animation: spin 3s cubic-bezier(0.25, 1, 0.5, 1);
+        perspective: 1500px;
     }
+    
+    .flipper {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        transform-style: preserve-3d;
+        transition: transform 0.6s;
+    }
+    
+    .flipper.spinning {
+        animation: spin3d 5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+    }
+    
+    .flipper.show-back {
+        transform: rotateY(180deg);
+    }
+    
+    .flip-front, .flip-back {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        border-radius: 50%;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    
+    .flip-front {
+        transform: rotateY(0deg);
+    }
+    
+    .flip-back {
+        transform: rotateY(180deg);
+    }
+    
+    .flip-front img, .flip-back img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+    }
+    
     .big-font {
         font-size:30px !important;
         font-weight: bold;
@@ -171,19 +211,11 @@ with tab1:
             st.markdown(f'<p class="big-font">{rec["name"]}</p>', unsafe_allow_html=True)
             st.markdown(f'<p class="medium-font">{rec["category"]} | {rec["area"]}</p>', unsafe_allow_html=True)
             
-            # Action Buttons
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                if st.button("👍 이걸로 결정! (기록 저장)"):
-                    st.session_state.history.save_record(rec['name'], rec['area'], rec['category'], user=nickname)
-                    st.balloons()
-                    st.toast(f"'{rec['name']}' 식사가 기록되었습니다!", icon="✅")
-            with col_btn2:
-                if st.button("👎 다시 추천"):
-                    filters = selected_cuisines if selected_cuisines else None
-                    rec = st.session_state.recommender.recommend(weather=w_cond, cuisine_filters=filters, mood=mood)
-                    st.session_state.current_rec = rec
-                    st.rerun()
+            # Action Button (결정만 가능, 다시 추천은 위의 버튼 재사용)
+            if st.button("👍 이걸로 결정! (기록 저장)"):
+                st.session_state.history.save_record(rec['name'], rec['area'], rec['category'], user=nickname)
+                st.balloons()
+                st.toast(f"'{rec['name']}' 식사가 기록되었습니다!", icon="✅")
 
 # --- TAB 2: Table Spin (Random Game) ---
 with tab2:
@@ -195,112 +227,153 @@ with tab2:
     all_menus = lunch_data.load_menus()
     
     if spin_mode == "전체 메뉴 뺑뺑이":
-        if st.button("🚀 밥상 돌리기 시작!", type="primary"):
-            import random
+        # 세션 상태 초기화
+        if 'spin_step' not in st.session_state:
+            st.session_state.spin_step = 'ready'
+            st.session_state.spin_picked = None
+        
+        if st.session_state.spin_step == 'ready':
+            if st.button("🚀 밥상 돌리기 시작!", type="primary", key="start_spin_all"):
+                import random
+                # Pick Winner
+                st.session_state.spin_picked = random.choice(all_menus)
+                st.session_state.spin_step = 'spinning'
+                st.rerun()
+        
+        elif st.session_state.spin_step == 'spinning':
             import base64
             
-            # Load Only First Table Image (양은 밥상)
+            # Load Table Front and Back Images (단색 배경)
             try:
-                with open("table_img.png", "rb") as f:
-                    img_data = f.read()
-                    table_img = base64.b64encode(img_data).decode()
+                with open("table_front_transparent.png", "rb") as f:
+                    front_data = f.read()
+                    table_front = base64.b64encode(front_data).decode()
+                with open("table_back_transparent.png", "rb") as f:
+                    back_data = f.read()
+                    table_back = base64.b64encode(back_data).decode()
             except:
-                table_img = ""
+                table_front = ""
+                table_back = ""
 
-            # Pick Winner First
-            picked = random.choice(all_menus)
-
-            # Animation: Flip the single table
-            placeholder = st.empty()
-            with placeholder.container():
-                if table_img:
-                    st.markdown(f'<img src="data:image/png;base64,{table_img}" class="spinning-img">', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
-                time.sleep(3)
-            
-            # Pause for 1 second (keep table visible)
-            time.sleep(1)
-            placeholder.empty()
-            
-            # Show table with menu name on it
-            result_placeholder = st.empty()
-            with result_placeholder.container():
-                # Display table with text overlay
+            # Animation: 3D Flip Card
+            if table_front and table_back:
                 st.markdown(f'''
-                    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
-                        <img src="data:image/png;base64,{table_img}" style="width: 450px; height: 450px; border-radius: 50%; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 60px; font-weight: bold; color: #FFFFFF; text-shadow: 3px 3px 8px rgba(0,0,0,0.8), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">{picked["name"]}</div>
+                    <div class="flip-container">
+                        <div class="flipper spinning">
+                            <div class="flip-front">
+                                <img src="data:image/png;base64,{table_front}">
+                            </div>
+                            <div class="flip-back">
+                                <img src="data:image/png;base64,{table_back}">
+                            </div>
+                        </div>
                     </div>
                 ''', unsafe_allow_html=True)
-            time.sleep(1.5)
-            result_placeholder.empty()
-                
+            else:
+                st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
+            
+            # 사용자가 클릭해야 다음으로
+            st.markdown("<br>" * 15, unsafe_allow_html=True)
+            if st.button("⏸️ 결과 보기 (클릭)", type="primary", key="show_result_all"):
+                st.session_state.spin_step = 'result'
+                st.rerun()
+        
+        elif st.session_state.spin_step == 'result':
+            picked = st.session_state.spin_picked
             st.success("🎉 당첨!")
             st.balloons()
             st.markdown(f'<p class="big-font">{picked["name"]}</p>', unsafe_allow_html=True)
             st.caption(f"{picked['category']} | {picked['area']}")
             
-            if st.button("이걸로 결정 (저장)", key="spin_save_all"):
-                st.session_state.history.save_record(picked['name'], picked['area'], picked['category'], user=nickname)
-                st.toast("저장되었습니다!", icon="✅")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("이걸로 결정 (저장)", key="spin_save_all"):
+                    st.session_state.history.save_record(picked['name'], picked['area'], picked['category'], user=nickname)
+                    st.toast("저장되었습니다!", icon="✅")
+                    st.session_state.spin_step = 'ready'
+                    st.rerun()
+            with col2:
+                if st.button("🔄 다시 돌리기", key="spin_again_all"):
+                    st.session_state.spin_step = 'ready'
+                    st.rerun()
 
     else: # Custom Candidates
         menu_names = [m["name"] for m in all_menus]
-        candidates = st.multiselect("후보를 골라주세요 (최소 2개)", menu_names)
+        candidates = st.multiselect("후보를 골라주세요 (최소 2개)", menu_names, key="custom_candidates")
         
         if len(candidates) < 2:
             st.warning("후보를 2개 이상 선택해야 밥상을 돌릴 수 있습니다.")
         else:
-            if st.button("🚀 선택한 후보로 돌리기", type="primary"):
-                 import random
-                 import base64
-                 
-                 # Load Only First Table Image (양은 밥상)
-                 try:
-                    with open("table_img.png", "rb") as f:
-                        img_data = f.read()
-                        table_img = base64.b64encode(img_data).decode()
-                 except:
-                    table_img = ""
+            # 세션 상태 초기화
+            if 'spin_custom_step' not in st.session_state:
+                st.session_state.spin_custom_step = 'ready'
+                st.session_state.spin_custom_picked = None
+            
+            if st.session_state.spin_custom_step == 'ready':
+                if st.button("🚀 선택한 후보로 돌리기", type="primary", key="start_spin_custom"):
+                    import random
+                    # Pick Winner
+                    winner_name = random.choice(candidates)
+                    st.session_state.spin_custom_picked = next((m for m in all_menus if m["name"] == winner_name), None)
+                    st.session_state.spin_custom_step = 'spinning'
+                    st.rerun()
+            
+            elif st.session_state.spin_custom_step == 'spinning':
+                import base64
+                
+                # Load Table Front and Back Images (단색 배경)
+                try:
+                    with open("table_front_transparent.png", "rb") as f:
+                        front_data = f.read()
+                        table_front = base64.b64encode(front_data).decode()
+                    with open("table_back_transparent.png", "rb") as f:
+                        back_data = f.read()
+                        table_back = base64.b64encode(back_data).decode()
+                except:
+                    table_front = ""
+                    table_back = ""
 
-                 # Pick Winner First
-                 winner_name = random.choice(candidates)
-                 winner = next((m for m in all_menus if m["name"] == winner_name), None)
-
-                 # Animation: Flip the single table
-                 placeholder = st.empty()
-                 with placeholder.container():
-                     if table_img:
-                        st.markdown(f'<img src="data:image/png;base64,{table_img}" class="spinning-img">', unsafe_allow_html=True)
-                     else:
-                        st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
-                     time.sleep(3)
-                 
-                 # Pause for 1 second
-                 time.sleep(1)
-                 placeholder.empty()
-                 
-                 # Show table with menu name on it
-                 result_placeholder = st.empty()
-                 with result_placeholder.container():
-                     st.markdown(f'''
-                         <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
-                             <img src="data:image/png;base64,{table_img}" style="width: 450px; height: 450px; border-radius: 50%; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-                             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 60px; font-weight: bold; color: #FFFFFF; text-shadow: 3px 3px 8px rgba(0,0,0,0.8), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">{winner["name"]}</div>
-                         </div>
-                     ''', unsafe_allow_html=True)
-                 time.sleep(1.5)
-                 result_placeholder.empty()
-                  
-                 st.success("🎉 당첨!")
-                 st.balloons()
-                 st.markdown(f'<p class="big-font">{winner["name"]}</p>', unsafe_allow_html=True)
-                 st.caption(f"{winner['category']} | {winner['area']}")
-                 
-                 if st.button("이걸로 결정 (저장)", key="spin_save_custom"):
-                    st.session_state.history.save_record(winner['name'], winner['area'], winner['category'], user=nickname)
-                    st.toast("저장되었습니다!", icon="✅")
+                # Animation: 3D Flip Card
+                if table_front and table_back:
+                    st.markdown(f'''
+                        <div class="flip-container">
+                            <div class="flipper spinning">
+                                <div class="flip-front">
+                                    <img src="data:image/png;base64,{table_front}">
+                                </div>
+                                <div class="flip-back">
+                                    <img src="data:image/png;base64,{table_back}">
+                                </div>
+                            </div>
+                        </div>
+                    ''', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
+                
+                # 사용자가 클릭해야 다음으로
+                st.markdown("<br>" * 15, unsafe_allow_html=True)
+                if st.button("⏸️ 결과 보기 (클릭)", type="primary", key="show_result_custom"):
+                    st.session_state.spin_custom_step = 'result'
+                    st.rerun()
+            
+            elif st.session_state.spin_custom_step == 'result':
+                winner = st.session_state.spin_custom_picked
+                st.success("🎉 당첨!")
+                st.balloons()
+                st.markdown(f'<p class="big-font">{winner["name"]}</p>', unsafe_allow_html=True)
+                st.caption(f"{winner['category']} | {winner['area']}")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("이걸로 결정 (저장)", key="spin_save_custom"):
+                        st.session_state.history.save_record(winner['name'], winner['area'], winner['category'], user=nickname)
+                        st.toast("저장되었습니다!", icon="✅")
+                        st.session_state.spin_custom_step = 'ready'
+                        st.rerun()
+                with col2:
+                    if st.button("🔄 다시 돌리기", key="spin_again_custom"):
+                        st.session_state.spin_custom_step = 'ready'
+                        st.rerun()
 
 # --- TAB 3: Stats ---
 with tab3:
