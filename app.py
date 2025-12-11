@@ -32,7 +32,7 @@ st.markdown("""
             animation-timing-function: ease-out;
         }
         100% { 
-            transform: rotateY(1440deg);
+            transform: rotateY(1620deg);
         }
     }
     
@@ -56,7 +56,7 @@ st.markdown("""
     }
     
     .flipper.spinning {
-        animation: spin3d 3s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+        animation: spin3d 2s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
     }
     
     .flipper.show-back {
@@ -301,7 +301,10 @@ with tab2:
                 try:
                     font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 100)
                 except:
-                    font = ImageFont.load_default()
+                    try:
+                        font = ImageFont.truetype("/System/Library/Fonts/Supplemental/AppleGothic.ttf", 100)
+                    except:
+                        font = ImageFont.load_default()
                 
                 text = picked['name']
                 bbox = draw.textbbox((0, 0), text, font=font)
@@ -322,8 +325,11 @@ with tab2:
                 buffer = io.BytesIO()
                 img.save(buffer, format='PNG')
                 table_back = base64.b64encode(buffer.getvalue()).decode()
+                
+                # 디버깅: 성공 메시지
+                st.write(f"✅ 뒷면 이미지 생성 성공: {text}")
             except Exception as e:
-                print(f"뒷면 이미지 생성 실패: {e}")
+                st.error(f"❌ 뒷면 이미지 생성 실패: {e}")
                 table_back = ""
 
             # Animation: 3D Flip Card
