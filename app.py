@@ -670,7 +670,10 @@ if tab5:
                 submitted = st.form_submit_button("추가하기")
                 if submitted:
                     if new_name and new_area:
-                        lunch_data.add_menu(new_name, new_cat, new_area)
+                        # lunch_data.save_new_menu(name, area, category, cuisine, tags)
+                        # 여기서는 category가 cuisine 역할도 겸하고 있음 (간단 버전)
+                        # tags는 임시로 빈 리스트
+                        lunch_data.save_new_menu(new_name, new_area, new_cat, new_cat, [])
                         st.session_state.recommender.refresh_data()
                         st.success(f"'{new_name}' 추가 완료!")
                     else:

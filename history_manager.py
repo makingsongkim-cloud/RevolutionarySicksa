@@ -161,28 +161,31 @@ class LunchHistory:
         
         if len(lines) <= 1: return False
             
-        # Find the last line that matches both date and user
-        # This is tricky with simple file I/O on CSV, simpler to just read all logic.
-        # But for 'Undo' usually it's the very last action.
-        # Let's check the very last line first.
+        if len(lines) <= 1: return False
+            
+        # 역순으로 탐색하여 해당 사용자의 오늘 기록 중 '가장 마지막' 하나만 삭제
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        target_index = -1
         
-        last_line = lines[-1]
-        try:
-             # date,name,area,cat,user
-             parts = last_line.strip().split(',') # Should use csv parser but simple split ok for now
-             if len(parts) >= 5:
-                  l_date, l_user = parts[0], parts[4]
-             else:
-                  l_date, l_user = parts[0], "Master" # Old format fallback
-             
-             today_str = datetime.now().strftime("%Y-%m-%d")
-             
-             if l_date == today_str and l_user == user:
-                with open(self.filepath, mode='w', encoding='utf-8') as f:
-                    f.writelines(lines[:-1])
-                return True
-        except:
-            pass
+        for i in range(len(lines) - 1, 0, -1): # 헤더(0) 제외하고 뒤에서부터
+            line = lines[i].strip()
+            if not line: continue
+            
+            parts = line.split(',')
+            if len(parts) >= 1:
+                r_date = parts[0]
+                # 사용자 확인 (구형 포맷 호환)
+                r_user = parts[4] if len(parts) >= 5 else "Master"
+                
+                if r_date == today_str and r_user == user:
+                    target_index = i
+                    break
+        
+        if target_index != -1:
+            del lines[target_index]
+            with open(self.filepath, mode='w', encoding='utf-8') as f:
+                f.writelines(lines)
+            return True
             
         return False
 
