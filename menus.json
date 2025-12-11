@@ -178,5 +178,16 @@
         ],
         "category": "마라탕",
         "cuisine": "중식"
+    },
+    {
+        "name": "한촌 설렁탕",
+        "area": "건너편 먹자골목",
+        "category": "설렁탕",
+        "cuisine": "한식",
+        "tags": [
+            "rice",
+            "soup",
+            "hot"
+        ]
     }
 ]
