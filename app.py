@@ -291,11 +291,8 @@ with tab2:
                 img = Image.new('RGB', (900, 900), (224, 224, 224))
                 draw = ImageDraw.Draw(img)
                 
-                # 원형 테이블 밑면
+                # 원형 테이블 밑면 (깔끔하게, 마크 없이)
                 draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
-                
-                # 중앙 마크
-                draw.ellipse((435, 435, 465, 465), fill=(70, 40, 20))
                 
                 # 메뉴 이름 텍스트
                 try:
@@ -434,11 +431,8 @@ with tab2:
                     img = Image.new('RGB', (900, 900), (224, 224, 224))
                     draw = ImageDraw.Draw(img)
                     
-                    # 원형 테이블 밑면
+                    # 원형 테이블 밑면 (깔끔하게, 마크 없이)
                     draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
-                    
-                    # 중앙 마크
-                    draw.ellipse((435, 435, 465, 465), fill=(70, 40, 20))
                     
                     # 메뉴 이름 텍스트
                     try:
