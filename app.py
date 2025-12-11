@@ -23,9 +23,17 @@ if 'history' not in st.session_state:
 st.markdown("""
 <style>
     @keyframes spin3d {
-        0% { transform: rotateY(0deg); }
-        50% { transform: rotateY(720deg); }
-        100% { transform: rotateY(1440deg); }
+        0% { 
+            transform: rotateY(0deg);
+            animation-timing-function: ease-in;
+        }
+        70% { 
+            transform: rotateY(1080deg);
+            animation-timing-function: ease-out;
+        }
+        100% { 
+            transform: rotateY(1440deg);
+        }
     }
     
     .flip-container {
@@ -245,17 +253,58 @@ with tab2:
         
         elif st.session_state.spin_step == 'spinning':
             import base64
+            from PIL import Image, ImageDraw, ImageFont
+            import io
             
-            # Load Table Front and Back Images (단색 배경)
+            picked = st.session_state.spin_picked
+            
+            # Load Front Image
             try:
                 with open("table_front_transparent.png", "rb") as f:
                     front_data = f.read()
                     table_front = base64.b64encode(front_data).decode()
-                with open("table_back_transparent.png", "rb") as f:
-                    back_data = f.read()
-                    table_back = base64.b64encode(back_data).decode()
             except:
                 table_front = ""
+            
+            # Create Back Image with Menu Name (동적 생성)
+            try:
+                # 뒷면 이미지 동적 생성
+                img = Image.new('RGB', (900, 900), (224, 224, 224))
+                draw = ImageDraw.Draw(img)
+                
+                # 원형 테이블 밑면
+                draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
+                
+                # 중앙 마크
+                draw.ellipse((435, 435, 465, 465), fill=(70, 40, 20))
+                
+                # 메뉴 이름 텍스트
+                try:
+                    font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 100)
+                except:
+                    font = ImageFont.load_default()
+                
+                text = picked['name']
+                bbox = draw.textbbox((0, 0), text, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                text_x = (900 - text_width) // 2
+                text_y = (900 - text_height) // 2
+                
+                # 텍스트 외곽선
+                for adj_x in range(-8, 9):
+                    for adj_y in range(-8, 9):
+                        draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
+                
+                # 텍스트 본체
+                draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
+                
+                # PNG로 변환
+                buffer = io.BytesIO()
+                img.save(buffer, format='PNG')
+                table_back = base64.b64encode(buffer.getvalue()).decode()
+            except Exception as e:
+                print(f"뒷면 이미지 생성 실패: {e}")
                 table_back = ""
 
             # Animation: 3D Flip Card
@@ -323,17 +372,58 @@ with tab2:
             
             elif st.session_state.spin_custom_step == 'spinning':
                 import base64
+                from PIL import Image, ImageDraw, ImageFont
+                import io
                 
-                # Load Table Front and Back Images (단색 배경)
+                winner = st.session_state.spin_custom_picked
+                
+                # Load Front Image
                 try:
                     with open("table_front_transparent.png", "rb") as f:
                         front_data = f.read()
                         table_front = base64.b64encode(front_data).decode()
-                    with open("table_back_transparent.png", "rb") as f:
-                        back_data = f.read()
-                        table_back = base64.b64encode(back_data).decode()
                 except:
                     table_front = ""
+                
+                # Create Back Image with Menu Name (동적 생성)
+                try:
+                    # 뒷면 이미지 동적 생성
+                    img = Image.new('RGB', (900, 900), (224, 224, 224))
+                    draw = ImageDraw.Draw(img)
+                    
+                    # 원형 테이블 밑면
+                    draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
+                    
+                    # 중앙 마크
+                    draw.ellipse((435, 435, 465, 465), fill=(70, 40, 20))
+                    
+                    # 메뉴 이름 텍스트
+                    try:
+                        font = ImageFont.truetype("/System/Library/Fonts/AppleSDGothicNeo.ttc", 100)
+                    except:
+                        font = ImageFont.load_default()
+                    
+                    text = winner['name']
+                    bbox = draw.textbbox((0, 0), text, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+                    text_x = (900 - text_width) // 2
+                    text_y = (900 - text_height) // 2
+                    
+                    # 텍스트 외곽선
+                    for adj_x in range(-8, 9):
+                        for adj_y in range(-8, 9):
+                            draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
+                    
+                    # 텍스트 본체
+                    draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
+                    
+                    # PNG로 변환
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='PNG')
+                    table_back = base64.b64encode(buffer.getvalue()).decode()
+                except Exception as e:
+                    print(f"뒷면 이미지 생성 실패: {e}")
                     table_back = ""
 
                 # Animation: 3D Flip Card

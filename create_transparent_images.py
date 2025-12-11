@@ -38,38 +38,25 @@ def make_circular_transparent(input_path, output_path, size=(900, 900)):
     output.save(output_path, 'PNG')
     print(f"✅ 단색 배경 이미지 생성 완료: {output_path}")
 
-def create_back_with_text(output_path, size=(900, 900)):
+def create_back_with_text(output_path, text="오늘의 점심", size=(900, 900)):
     """
-    밥상 뒷면 이미지 생성 (단색 배경 + "오늘의 점심" 텍스트)
+    밥상 뒷면 이미지 생성 (단색 배경 + 텍스트 - 십자가 제거)
     """
     # 단색 배경 생성 (웹 배경색과 동일: #E0E0E0)
     img = Image.new('RGB', size, (224, 224, 224))
     draw = ImageDraw.Draw(img)
     
-    # 원형 테이블 밑면 그리기 (어두운 갈색)
+    # 원형 테이블 밑면 그리기 (어두운 갈색) - 지지대 없이 깔끔하게
     draw.ellipse((0, 0, size[0], size[1]), fill=(101, 67, 33))
     
-    # 테이블 지지대 그리기 (중앙에 X자 형태)
+    # 중앙에 작은 원형 마크 (테이블 중심점 표시)
     center_x, center_y = size[0] // 2, size[1] // 2
-    bar_width = 40
-    bar_color = (70, 40, 20)
-    
-    # 가로 지지대
-    draw.rectangle(
-        (center_x - size[0]//3, center_y - bar_width//2,
-         center_x + size[0]//3, center_y + bar_width//2),
-        fill=bar_color
+    mark_radius = 30
+    draw.ellipse(
+        (center_x - mark_radius, center_y - mark_radius,
+         center_x + mark_radius, center_y + mark_radius),
+        fill=(70, 40, 20)
     )
-    
-    # 세로 지지대
-    draw.rectangle(
-        (center_x - bar_width//2, center_y - size[1]//3,
-         center_x + bar_width//2, center_y + size[1]//3),
-        fill=bar_color
-    )
-    
-    # 텍스트 추가: "오늘의 점심"
-    text = "오늘의 점심"
     
     # 폰트 설정 (시스템 한글 폰트 사용)
     try:
