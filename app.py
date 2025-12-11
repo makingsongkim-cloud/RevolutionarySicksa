@@ -99,7 +99,7 @@ with st.sidebar:
     st.markdown("---")
     with st.expander("🔧 관리자 설정"):
         admin_pwd = st.text_input("관리자 암호", type="password", key="admin_pw_input")
-        if admin_pwd == "1234":
+        if admin_pwd == "2545":
             st.session_state.is_admin = True
             st.success("관리자 권한: 활성화됨")
         else:
