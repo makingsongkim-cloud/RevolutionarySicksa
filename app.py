@@ -125,7 +125,10 @@ with st.sidebar:
     st.title("🍱 지존 마스터님")
     
     # User Nickname Input
-    nickname = st.text_input("닉네임 (기록용)", value="Master", help="이 이름을 기준으로 식사 기록이 저장됩니다.")
+    nickname = st.text_input("닉네임 (기록용)", value="", placeholder="예: 홍길동", help="이 이름을 기준으로 식사 기록이 저장됩니다.")
+    # 빈칸이면 기본값 사용
+    if not nickname.strip():
+        nickname = "사용자"
     st.session_state.user_nickname = nickname
     
     st.markdown("---")
