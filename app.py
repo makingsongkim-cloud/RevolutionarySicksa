@@ -25,11 +25,6 @@ st.markdown("""
     @keyframes spin3d {
         0% { 
             transform: rotateY(0deg);
-            animation-timing-function: ease-in;
-        }
-        70% { 
-            transform: rotateY(1080deg);
-            animation-timing-function: ease-out;
         }
         100% { 
             transform: rotateY(1620deg);
@@ -56,7 +51,7 @@ st.markdown("""
     }
     
     .flipper.spinning {
-        animation: spin3d 2s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+        animation: spin3d 2s ease-in-out forwards;
     }
     
     .flipper.show-back {
@@ -342,6 +337,25 @@ with tab2:
                             </div>
                         </div>
                     </div>
+                    <script>
+                    // 아무 곳이나 클릭하거나 키보드 누르면 결과 보기 버튼 자동 클릭
+                    setTimeout(function() {{
+                        function autoClick() {{
+                            const btn = document.querySelector('button[kind="primary"]');
+                            if (btn && btn.innerText.includes('결과 보기')) {{
+                                btn.click();
+                            }}
+                            // 이벤트 제거
+                            document.removeEventListener('click', autoClick);
+                            document.removeEventListener('keydown', autoClick);
+                        }}
+                        
+                        // 클릭 이벤트 리스너
+                        document.addEventListener('click', autoClick);
+                        // 키보드 이벤트 리스너
+                        document.addEventListener('keydown', autoClick);
+                    }}, 2000); // 2초 후 (애니메이션 완료 후)
+                    </script>
                 ''', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
@@ -476,6 +490,25 @@ with tab2:
                                 </div>
                             </div>
                         </div>
+                        <script>
+                        // 아무 곳이나 클릭하거나 키보드 누르면 결과 보기 버튼 자동 클릭
+                        setTimeout(function() {{
+                            function autoClick() {{
+                                const btn = document.querySelector('button[kind="primary"]');
+                                if (btn && btn.innerText.includes('결과 보기')) {{
+                                    btn.click();
+                                }}
+                                // 이벤트 제거
+                                document.removeEventListener('click', autoClick);
+                                document.removeEventListener('keydown', autoClick);
+                            }}
+                            
+                            // 클릭 이벤트 리스너
+                            document.addEventListener('click', autoClick);
+                            // 키보드 이벤트 리스너
+                            document.addEventListener('keydown', autoClick);
+                        }}, 2000); // 2초 후 (애니메이션 완료 후)
+                        </script>
                     ''', unsafe_allow_html=True)
                 else:
                     st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
