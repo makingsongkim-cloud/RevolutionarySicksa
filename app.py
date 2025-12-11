@@ -280,66 +280,52 @@ with tab2:
             except:
                 table_front = ""
             
-            # Create Back Image with Menu Name (동적 생성)
+            # Create Back Image (텍스트 없이 이미지만 생성)
             try:
                 # 뒷면 이미지 동적 생성
                 img = Image.new('RGB', (900, 900), (224, 224, 224))
                 draw = ImageDraw.Draw(img)
                 
-                # 원형 테이블 밑면 (깔끔하게, 마크 없이)
+                # 원형 테이블 밑면 (깔끔하게)
                 draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
-                
-                # 메뉴 이름 텍스트
-                font = None
-                font_paths = [
-                    "/System/Library/Fonts/Supplemental/AppleGothic.ttf",  # 1순위: TTF (안정적)
-                    "/System/Library/Fonts/AppleSDGothicNeo.ttc",          # 2순위: TTC
-                    "/System/Library/Fonts/Supplemental/NotoSansGothic-Regular.ttf",
-                    "/Library/Fonts/Arial Unicode.ttf"
-                ]
-                
-                for path in font_paths:
-                    try:
-                        font = ImageFont.truetype(path, 180)
-                        break
-                    except Exception as e:
-                        print(f"폰트 로드 실패: {path} - {e}")
-                        continue
-                
-                if font is None:
-                    font = ImageFont.load_default() # 최후의 수단
-                
-                text = picked['name']
-                bbox = draw.textbbox((0, 0), text, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-                text_x = (900 - text_width) // 2
-                text_y = (900 - text_height) // 2
-                
-                # 텍스트 외곽선 (더 두껍게)
-                outline_width = 12
-                # 기본 폰트가 아닐 때만 외곽선 그리기 (기본 폰트는 너무 작아서 외곽선 그리면 뭉개짐)
-                if font.size > 20: 
-                    for adj_x in range(-outline_width, outline_width+1):
-                        for adj_y in range(-outline_width, outline_width+1):
-                            draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
-                
-                # 텍스트 본체
-                draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
                 
                 # PNG로 변환
                 buffer = io.BytesIO()
                 img.save(buffer, format='PNG')
                 table_back = base64.b64encode(buffer.getvalue()).decode()
             except Exception as e:
-                # 치명적 오류 시에도 빈 문자열 대신 텍스트 없는 이미지를 시도하거나
-                # 여기서는 어쩔 수 없이 에러 처리하지만, 위에서 폰트 로딩 실패는 다 잡았으므로 이쪽으로 올 확률 적음
                 print(f"뒷면 이미지 생성 중 치명적 오류: {e}") 
                 table_back = ""
 
             # Animation: 3D Flip Card
             if table_front and table_back:
+                # 텍스트는 Python이 아니라 CSS로 띄웁니다 (폰트 깨짐 방지)
+                menu_name = picked['name']
+                
                 st.markdown(f'''
+                    <style>
+                        .menu-name-overlay {{
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            transform: translate(-50%, -50%) rotateY(180deg); /* 뒷면에 맞춰 뒤집기 */
+                            font-size: 80px; 
+                            font-weight: 900;
+                            color: white;
+                            text-align: center;
+                            width: 80%;
+                            z-index: 10;
+                            text-shadow: 
+                                -2px -2px 0 #000,  
+                                2px -2px 0 #000,
+                                -2px 2px 0 #000,
+                                2px 2px 0 #000, /* 얇은 외곽선 */
+                                4px 4px 8px rgba(0,0,0,0.5); /* 그림자 */
+                            font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+                            word-break: keep-all;
+                            line-height: 1.2;
+                        }}
+                    </style>
                     <div class="flip-container">
                         <div class="flipper spinning">
                             <div class="flip-front">
@@ -347,6 +333,7 @@ with tab2:
                             </div>
                             <div class="flip-back">
                                 <img src="data:image/png;base64,{table_back}">
+                                <div class="menu-name-overlay">{menu_name}</div>
                             </div>
                         </div>
                     </div>
@@ -461,55 +448,12 @@ with tab2:
                     # 원형 테이블 밑면 (깔끔하게, 마크 없이)
                     draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
                     
-                    # 메뉴 이름 텍스트
-                    font = None
-                    font_paths = [
-                        "/System/Library/Fonts/Supplemental/AppleGothic.ttf", 
-                        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-                        "/Library/Fonts/Arial Unicode.ttf",
-                        "/System/Library/Fonts/Helvetica.ttc",
-                        "/System/Library/Fonts/Supplemental/Arial.ttf"
-                    ]
+                # Create Back Image (텍스트 없이 이미지만)
+                try:
+                    img = Image.new('RGB', (900, 900), (224, 224, 224))
+                    draw = ImageDraw.Draw(img)
+                    draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
                     
-                    for path in font_paths:
-                        try:
-                            font = ImageFont.truetype(path, 180)
-                            break
-                        except:
-                            continue
-                    
-                    if font is None:
-                        try:
-                             font = ImageFont.truetype("Arial", 180)
-                        except:
-                            font = ImageFont.load_default()
-                    
-                    text = winner['name']
-                    try:
-                        bbox = draw.textbbox((0, 0), text, font=font)
-                        text_width = bbox[2] - bbox[0]
-                        text_height = bbox[3] - bbox[1]
-                    except:
-                        text_width = 100
-                        text_height = 50
-                    
-                    text_x = (900 - text_width) // 2
-                    text_y = (900 - text_height) // 2
-                    
-                    # 텍스트 외곽선 (더 두껍게)
-                    try:
-                        if getattr(font, 'size', 0) > 20: 
-                            outline_width = 12
-                            for adj_x in range(-outline_width, outline_width+1):
-                                for adj_y in range(-outline_width, outline_width+1):
-                                    draw.text((text_x + adj_x, text_y + adj_y), text, font=font, fill=(0, 0, 0))
-                    except:
-                        pass
-                    
-                    # 텍스트 본체
-                    draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
-                    
-                    # PNG로 변환
                     buffer = io.BytesIO()
                     img.save(buffer, format='PNG')
                     table_back = base64.b64encode(buffer.getvalue()).decode()
@@ -519,7 +463,31 @@ with tab2:
 
                 # Animation: 3D Flip Card
                 if table_front and table_back:
+                    menu_name = winner['name']
                     st.markdown(f'''
+                        <style>
+                            .menu-name-overlay {{
+                                position: absolute;
+                                top: 50%;
+                                left: 50%;
+                                transform: translate(-50%, -50%) rotateY(180deg);
+                                font-size: 80px; 
+                                font-weight: 900;
+                                color: white;
+                                text-align: center;
+                                width: 80%;
+                                z-index: 10;
+                                text-shadow: 
+                                    -2px -2px 0 #000,  
+                                    2px -2px 0 #000,
+                                    -2px 2px 0 #000,
+                                    2px 2px 0 #000,
+                                    4px 4px 8px rgba(0,0,0,0.5);
+                                font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+                                word-break: keep-all;
+                                line-height: 1.2;
+                            }}
+                        </style>
                         <div class="flip-container">
                             <div class="flipper spinning">
                                 <div class="flip-front">
@@ -527,6 +495,7 @@ with tab2:
                                 </div>
                                 <div class="flip-back">
                                     <img src="data:image/png;base64,{table_back}">
+                                    <div class="menu-name-overlay">{menu_name}</div>
                                 </div>
                             </div>
                         </div>
