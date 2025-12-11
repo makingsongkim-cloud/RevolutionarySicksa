@@ -56,7 +56,7 @@ st.markdown("""
     }
     
     .flipper.spinning {
-        animation: spin3d 5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+        animation: spin3d 3s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
     }
     
     .flipper.show-back {
@@ -246,8 +246,27 @@ with tab2:
         if st.session_state.spin_step == 'ready':
             if st.button("🚀 밥상 돌리기 시작!", type="primary", key="start_spin_all"):
                 import random
+                
+                # 중복 방지: 최근 3개 선택 항목 제외
+                if 'recent_picks' not in st.session_state:
+                    st.session_state.recent_picks = []
+                
+                available_menus = [m for m in all_menus if m['name'] not in st.session_state.recent_picks]
+                
+                # 선택 가능한 메뉴가 없으면 기록 초기화
+                if not available_menus:
+                    st.session_state.recent_picks = []
+                    available_menus = all_menus
+                
                 # Pick Winner
-                st.session_state.spin_picked = random.choice(all_menus)
+                picked = random.choice(available_menus)
+                st.session_state.spin_picked = picked
+                
+                # 최근 선택 항목 기록 (최대 3개 유지)
+                st.session_state.recent_picks.append(picked['name'])
+                if len(st.session_state.recent_picks) > 3:
+                    st.session_state.recent_picks.pop(0)
+                
                 st.session_state.spin_step = 'spinning'
                 st.rerun()
         
@@ -364,9 +383,27 @@ with tab2:
             if st.session_state.spin_custom_step == 'ready':
                 if st.button("🚀 선택한 후보로 돌리기", type="primary", key="start_spin_custom"):
                     import random
+                    
+                    # 중복 방지: 최근 3개 선택 항목 제외
+                    if 'recent_custom_picks' not in st.session_state:
+                        st.session_state.recent_custom_picks = []
+                    
+                    available_candidates = [c for c in candidates if c not in st.session_state.recent_custom_picks]
+                    
+                    # 선택 가능한 후보가 없으면 기록 초기화
+                    if not available_candidates:
+                        st.session_state.recent_custom_picks = []
+                        available_candidates = candidates
+                    
                     # Pick Winner
-                    winner_name = random.choice(candidates)
+                    winner_name = random.choice(available_candidates)
                     st.session_state.spin_custom_picked = next((m for m in all_menus if m["name"] == winner_name), None)
+                    
+                    # 최근 선택 항목 기록 (최대 3개 유지)
+                    st.session_state.recent_custom_picks.append(winner_name)
+                    if len(st.session_state.recent_custom_picks) > 3:
+                        st.session_state.recent_custom_picks.pop(0)
+                    
                     st.session_state.spin_custom_step = 'spinning'
                     st.rerun()
             
