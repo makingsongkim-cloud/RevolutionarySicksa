@@ -23,8 +23,8 @@ if 'history' not in st.session_state:
 st.markdown("""
 <style>
     @keyframes spin {
-        0% { transform: translate(-50%, -50%) rotate(0deg); }
-        100% { transform: translate(-50%, -50%) rotate(1080deg); }
+        0% { transform: translate(-50%, -50%) rotateY(0deg); }
+        100% { transform: translate(-50%, -50%) rotateY(1080deg); }
     }
     .spinning-img {
         width: 450px !important;
@@ -199,25 +199,42 @@ with tab2:
             import random
             import base64
             
-            # Load Image
+            # Load Only First Table Image (양은 밥상)
             try:
                 with open("table_img.png", "rb") as f:
                     img_data = f.read()
-                    b64_img = base64.b64encode(img_data).decode()
+                    table_img = base64.b64encode(img_data).decode()
             except:
-                b64_img = "" # Fallback or error
+                table_img = ""
 
-            # Animation
+            # Pick Winner First
+            picked = random.choice(all_menus)
+
+            # Animation: Flip the single table
             placeholder = st.empty()
             with placeholder.container():
-                if b64_img:
-                    st.markdown(f'<img src="data:image/png;base64,{b64_img}" class="spinning-img">', unsafe_allow_html=True)
+                if table_img:
+                    st.markdown(f'<img src="data:image/png;base64,{table_img}" class="spinning-img">', unsafe_allow_html=True)
                 else:
-                    st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True) # Fallback
+                    st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
                 time.sleep(3)
+            
+            # Pause for 1 second (keep table visible)
+            time.sleep(1)
             placeholder.empty()
-
-            picked = random.choice(all_menus)
+            
+            # Show table with menu name on it
+            result_placeholder = st.empty()
+            with result_placeholder.container():
+                # Display table with text overlay
+                st.markdown(f'''
+                    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
+                        <img src="data:image/png;base64,{table_img}" style="width: 450px; height: 450px; border-radius: 50%; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 60px; font-weight: bold; color: #FFFFFF; text-shadow: 3px 3px 8px rgba(0,0,0,0.8), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">{picked["name"]}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            time.sleep(1.5)
+            result_placeholder.empty()
                 
             st.success("🎉 당첨!")
             st.balloons()
@@ -239,28 +256,43 @@ with tab2:
                  import random
                  import base64
                  
-                 # Load Image
+                 # Load Only First Table Image (양은 밥상)
                  try:
                     with open("table_img.png", "rb") as f:
                         img_data = f.read()
-                        b64_img = base64.b64encode(img_data).decode()
+                        table_img = base64.b64encode(img_data).decode()
                  except:
-                    b64_img = ""
+                    table_img = ""
 
-                 # Animation
+                 # Pick Winner First
+                 winner_name = random.choice(candidates)
+                 winner = next((m for m in all_menus if m["name"] == winner_name), None)
+
+                 # Animation: Flip the single table
                  placeholder = st.empty()
                  with placeholder.container():
-                     if b64_img:
-                        st.markdown(f'<img src="data:image/png;base64,{b64_img}" class="spinning-img">', unsafe_allow_html=True)
+                     if table_img:
+                        st.markdown(f'<img src="data:image/png;base64,{table_img}" class="spinning-img">', unsafe_allow_html=True)
                      else:
                         st.markdown('<div class="spinning-emoji">🥘</div>', unsafe_allow_html=True)
                      time.sleep(3)
-                 placeholder.empty()
-
-                 winner_name = random.choice(candidates)
-                 # Find full object
-                 winner = next((m for m in all_menus if m["name"] == winner_name), None)
                  
+                 # Pause for 1 second
+                 time.sleep(1)
+                 placeholder.empty()
+                 
+                 # Show table with menu name on it
+                 result_placeholder = st.empty()
+                 with result_placeholder.container():
+                     st.markdown(f'''
+                         <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
+                             <img src="data:image/png;base64,{table_img}" style="width: 450px; height: 450px; border-radius: 50%; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 60px; font-weight: bold; color: #FFFFFF; text-shadow: 3px 3px 8px rgba(0,0,0,0.8), -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;">{winner["name"]}</div>
+                         </div>
+                     ''', unsafe_allow_html=True)
+                 time.sleep(1.5)
+                 result_placeholder.empty()
+                  
                  st.success("🎉 당첨!")
                  st.balloons()
                  st.markdown(f'<p class="big-font">{winner["name"]}</p>', unsafe_allow_html=True)
