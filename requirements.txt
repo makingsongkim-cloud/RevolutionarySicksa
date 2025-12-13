@@ -1,5 +1,10 @@
-streamlit
-pandas
-beautifulsoup4
+fastapi
+uvicorn
 requests
-lxml
+python-dotenv
+google-generativeai
+pandas
+openpyxl
+gspread
+oauth2client
+beautifulsoup4

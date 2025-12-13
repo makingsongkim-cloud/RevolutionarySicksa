@@ -179,11 +179,25 @@ class LunchRecommender:
 
             # 날씨 반영
             if weather in ["비", "눈", "흐림"]:
-                if TAG_SOUP in tags or TAG_HOT in tags or TAG_NOODLE in tags:
+                # 국물 요리: 최우선 (+20점)
+                if TAG_SOUP in tags:
+                    score += 20
+                # 따뜻한 면 요리: 우선 (+15점)
+                elif TAG_NOODLE in tags and TAG_HOT in tags:
+                    score += 15
+                # 그냥 따뜻한 요리: 보통 (+5점)
+                elif TAG_HOT in tags:
                     score += 5
+                # 국물 없는 메뉴: 감점 (-10점)
+                else:
+                    score -= 10
             elif weather == "더움":
+                # 뜨거운 메뉴: 큰 감점 (-15점)
                 if TAG_HOT in tags:
-                    score -= 2 
+                    score -= 15
+                # 가벼운 메뉴: 가산점 (+10점)
+                if TAG_LIGHT in tags:
+                    score += 10
 
             # 기분 반영 (보통, 화남, 행복, 우울, 피곤)
             if mood == "화남": # 매운거, 묵직한거
@@ -195,7 +209,15 @@ class LunchRecommender:
                 if TAG_HEAVY in tags or TAG_MEAT in tags: score += 3
                 if TAG_SPICY in tags: score += 3 # (매운걸로 풀기)
             elif mood == "피곤": # 고기, 밥 (든든)
-                if TAG_RICE in tags or TAG_MEAT in tags: score += 4
+                # 고기+밥 조합: 최고 (+15점)
+                if TAG_RICE in tags and TAG_MEAT in tags:
+                    score += 15
+                # 국물+고기 조합: 우수 (+12점)
+                elif TAG_SOUP in tags and TAG_MEAT in tags:
+                    score += 12
+                # 그냥 고기나 밥: 보통 (+4점)
+                elif TAG_RICE in tags or TAG_MEAT in tags:
+                    score += 4
                 
             weighted_candidates.append((menu, score))
 

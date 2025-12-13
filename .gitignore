@@ -38,3 +38,6 @@ venv/
 config.json
 lunch_history.csv
 # menus.json is now tracked for deployment
+
+# Environment variables (API keys)
+.env
