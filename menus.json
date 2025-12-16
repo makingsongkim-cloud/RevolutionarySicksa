@@ -189,5 +189,17 @@
             "soup",
             "hot"
         ]
+    },
+    {
+        "name": "솔솥",
+        "area": "건너편 먹자골목",
+        "category": "솥밥",
+        "cuisine": "한식",
+        "tags": [
+            "rice",
+            "hot",
+            "heavy",
+            "meat"
+        ]
     }
 ]
