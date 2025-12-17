@@ -802,6 +802,7 @@ async def recommend_lunch(payload: SkillPayload):
     # ❓ 도움말 처리 (위치 이동: intent data 분석 후)
     # =================================================================
     if intent == "help":
+         import random  # 퀵 리플라이에서 random.choice() 사용하기 위해 필요
          return {
             "version": "2.0",
             "template": {
