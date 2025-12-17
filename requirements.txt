@@ -8,3 +8,8 @@ openpyxl
 gspread
 oauth2client
 beautifulsoup4
+streamlit
+watchdog
+customtkinter
+matplotlib
+pillow

@@ -48,7 +48,7 @@ try:
         }
         
         RESPONSE_CONFIG = {
-            "temperature": 0.7,
+            "temperature": 0.85,
             "max_output_tokens": 200,
             "top_p": 0.8,
             "top_k": 40
@@ -109,7 +109,44 @@ class SkillPayload(BaseModel):
     action: Action = Action()
 
 
+def get_josa(word: str, particle_type: str) -> str:
+    """
+    한글 단어의 받침 유무에 따라 적절한 조사를 붙여 반환합니다.
+    particle_type: "은/는", "이/가", "을/를", "와/과"
+    """
+    if not word:
+        return ""
+        
+    last_char = word[-1]
+    # 한글 유니코드 범위: 0xAC00 ~ 0xD7A3
+    if not (0xAC00 <= ord(last_char) <= 0xD7A3):
+        # 한글이 아니면 기본값(앞쪽 조사) 반환 (예: Pizza는)
+        return f"{word}{particle_type.split('/')[0]}"
+    
+    # 받침 유무 확인 ((유니코드 - 0xAC00) % 28 > 0 이면 받침 있음)
+    has_batchim = (ord(last_char) - 0xAC00) % 28 > 0
+    
+    particles = particle_type.split('/')
+    if has_batchim:
+        return f"{word}{particles[0]}" # 은, 이, 을, 과
+    else:
+        return f"{word}{particles[1]}" # 는, 가, 를, 와
+
+
 import asyncio
+INTENT_TIMEOUT_SEC = 3.5
+GENERATION_TIMEOUT_SEC = 2.5
+
+async def run_gemini_with_timeout(model, prompt: str, timeout_sec: float, log_label: str):
+    """Execute Gemini call in a thread with a timeout and return text or None."""
+    try:
+        result = await asyncio.wait_for(asyncio.to_thread(model.generate_content, prompt), timeout=timeout_sec)
+        return (result.text or "").strip()
+    except asyncio.TimeoutError:
+        print(f"{log_label} timeout after {timeout_sec}s")
+    except Exception as e:
+        print(f"{log_label} fail: {e}")
+    return None
 
 def format_history(conversation_history: List[Dict], limit: int = 2) -> str:
     """대화 히스토리 포맷팅 (토큰 절약)"""
@@ -143,8 +180,8 @@ async def analyze_intent_with_gemini(utterance: str, conversation_history: List[
 
 JSON만 출력:"""
 
-        # 4.5초 타임아웃 (LLM 우선 처리)
-        response = await asyncio.wait_for(intent_model.generate_content_async(prompt), timeout=4.5)
+        # 타임아웃 짧게(응답성 우선)
+        response = await asyncio.wait_for(intent_model.generate_content_async(prompt), timeout=INTENT_TIMEOUT_SEC)
         result_text = response.text.strip()
         
         # JSON 파싱 cleanup
@@ -243,12 +280,91 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
     }
 
 
-def generate_casual_response_with_gemini(utterance: str, casual_type: str, conversation_history: List[Dict]) -> str:
+def generate_explanation_fallback(rec: Dict, weather: Optional[str] = None, mood: Optional[str] = None) -> str:
+    """
+    추천 이유 설명 기본 응답 (Context-Aware Fallback)
+    """
+    name_with_josa = get_josa(rec['name'], "은/는")
+    
+    import random
+    
+    tags = rec.get("tags", [])
+    has_soup = "soup" in tags
+    has_spicy = "spicy" in tags
+    has_meat = "meat" in tags
+    has_rice = "rice" in tags
+    has_light = "light" in tags
+    has_noodle = "noodle" in tags
+    has_hot = "hot" in tags
+    
+    reasons = []
+    
+    # 1) 날씨 기반
+    if weather in ["비", "장마", "흐림"] and has_soup:
+        reasons.append("비 오는 날 뜨끈한 국물로 몸 녹이기 좋아서")
+    elif weather in ["비", "장마", "흐림"]:
+        reasons.append("비 오는 날 든든하게 드시라고")
+    elif weather in ["눈", "추위", "겨울", "한파"] and (has_soup or has_hot):
+        reasons.append("추운 날 따뜻하게 드시라고")
+    elif weather in ["더위", "여름"] and has_light:
+        reasons.append("더운 날 부담 없이 시원하게 드시라고")
+    elif weather in ["더위", "여름"] and has_noodle:
+        reasons.append("더운 날 면 한 그릇으로 시원하게 하시라고")
+    
+    # 2) 기분 기반
+    if mood in ["화남", "스트레스"]:
+        if has_spicy:
+            reasons.append("매운 거로 스트레스 한 번 확 풀라고")
+        else:
+            reasons.append("스트레스엔 든든한 한 끼가 최고라서")
+    elif mood in ["우울", "슬픔"]:
+        if has_soup or has_rice or has_meat:
+            reasons.append("기분 전환에 도움 되게 든든한 걸로 골랐어요")
+        else:
+            reasons.append("우울할 땐 맛있는 게 약이라서")
+    elif mood in ["피곤"]:
+        if has_rice and has_meat:
+            reasons.append("고기+밥 조합으로 에너지 채우시라고")
+        else:
+            reasons.append("지친 몸에 힘 나는 메뉴라서")
+    elif mood == "행복":
+        if has_meat:
+            reasons.append("기분 좋은 날엔 맛있는 고기가 딱이라서")
+    elif mood == "다이어트":
+        if has_light:
+            reasons.append("가볍게 관리하기 좋은 메뉴라서")
+    elif mood == "플렉스":
+        reasons.append("오늘은 제대로 flex 하시라고")
+    
+    # 3) 메뉴 특징 기반
+    if not reasons:
+        if has_soup:
+            reasons.append("국물까지 시원/깔끔해서")
+        if has_spicy and len(reasons) < 2:
+            reasons.append("매콤하게 입맛 살리기 좋아서")
+        if has_meat and len(reasons) < 2:
+            reasons.append("고기가 푸짐해 든든해서")
+        if has_light and len(reasons) < 2:
+            reasons.append("가볍게 한 끼 하기 좋아서")
+    
+    # 4) 기본
+    if not reasons:
+        reasons = [
+            "정말 맛있는 곳이라",
+            "요즘 인기 있는 메뉴라",
+            "실패 없는 선택이라",
+            "많은 분들이 좋아하는 곳이라"
+        ]
+    
+    reason = random.choice(reasons)
+    return f"{name_with_josa} {reason} 추천드렸어요! 위치도 {rec.get('area')}라서 가기 좋답니다. 😊"
+
+
+async def generate_casual_response_with_gemini(utterance: str, casual_type: str, conversation_history: List[Dict]) -> str:
     """일상 대화 응답 (Short Prompt)"""
-    try:
-        history_text = format_history(conversation_history)
-        
-        prompt = f"""친근한 챗봇 응답:
+    history_text = format_history(conversation_history)
+    
+    prompt = f"""친근한 챗봇 응답:
 히스토리:
 {history_text}
 사용자: {utterance}
@@ -260,12 +376,13 @@ def generate_casual_response_with_gemini(utterance: str, casual_type: str, conve
 4. 1-2문장으로 짧게
 
 응답:"""
-        
-        response = gemini_model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        print(f"Casual response fail: {e}")
-        return generate_casual_response_fallback(casual_type)
+    
+    response_text = await run_gemini_with_timeout(
+        gemini_model, prompt, GENERATION_TIMEOUT_SEC, "Casual response"
+    )
+    if response_text:
+        return response_text
+    return generate_casual_response_fallback(casual_type)
 
 
 def generate_casual_response_fallback(casual_type: str) -> str:
@@ -296,14 +413,38 @@ def generate_casual_response_fallback(casual_type: str) -> str:
         return random.choice(messages)
 
 
-def generate_explanation_with_gemini(utterance: str, last_recommendation: Dict, conversation_history: List[Dict], weather: Optional[str] = None, mood: Optional[str] = None) -> str:
+def build_emotion_prefix(intent_data: Dict) -> str:
+    """감정/기분에 따라 멘트 앞머리 고정."""
+    mood = intent_data.get("mood")
+    emotion = intent_data.get("emotion")
+    
+    if mood == "화남":
+        return "화 풀 땐 매콤하게! 🔥\n"
+    if mood == "우울":
+        return "기분 전환엔 든든하게! 🌈\n"
+    if mood == "피곤":
+        return "에너지 채우는 한 끼! 💪\n"
+    if mood == "행복":
+        return "기분 좋은 날엔 맛있는 걸로! 😊\n"
+    if mood == "플렉스":
+        return "오늘은 제대로 flex! 💳\n"
+    if mood == "다이어트":
+        return "가볍게 관리하는 날! 🥗\n"
+    
+    if emotion == "negative":
+        return "힘든 날엔 든든하게! 🙏\n"
+    if emotion == "positive":
+        return "좋은 기분 이어가요! 😄\n"
+    return ""
+
+
+async def generate_explanation_with_gemini(utterance: str, last_recommendation: Dict, conversation_history: List[Dict], weather: Optional[str] = None, mood: Optional[str] = None) -> str:
     """추천 이유 설명 (Short Prompt)"""
-    try:
-        rec = last_recommendation
-        info = f"{rec['name']}({rec.get('category')}), {rec.get('area')}, 특징:{','.join(rec.get('tags',[]))}"
-        context = f"날씨:{weather}, 기분:{mood}" if weather or mood else ""
-        
-        prompt = f"""메뉴 추천 이유 설명:
+    rec = last_recommendation
+    info = f"{rec['name']}({rec.get('category')}), {rec.get('area')}, 특징:{','.join(rec.get('tags',[]))}"
+    context = f"날씨:{weather}, 기분:{mood}" if weather or mood else ""
+    
+    prompt = f"""메뉴 추천 이유 설명:
 사용자: "{utterance}"
 추천: {info}
 {context}
@@ -314,27 +455,27 @@ def generate_explanation_with_gemini(utterance: str, last_recommendation: Dict, 
 3. 친근한 말투, 이모지
 
 응답:"""
-        
-        response = gemini_model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        print(f"Explanation fail: {e}")
-        # Fallback (Existing Logic Simplified)
-        return f"{rec['name']}은(는) 정말 맛있는 곳이라 추천드렸어요! 위치도 {rec.get('area')}라서 가기 좋답니다. 😊"
+    
+    response_text = await run_gemini_with_timeout(
+        gemini_model, prompt, GENERATION_TIMEOUT_SEC, "Explanation"
+    )
+    if response_text:
+        return response_text
+    return generate_explanation_fallback(last_recommendation, weather, mood)
 
-def generate_response_with_gemini(utterance: str, choice: dict, intent_data: Dict, conversation_history: List[Dict]) -> str:
+async def generate_response_with_gemini(utterance: str, choice: dict, intent_data: Dict, conversation_history: List[Dict]) -> str:
     """추천 멘트 생성 (Short Prompt)"""
-    try:
-        name = choice['name']
-        category = choice.get('category', '')
-        area = choice.get('area', '')
-        tags = choice.get('tags', [])
-        
-        context = f"상황: {intent_data.get('weather')}, {intent_data.get('mood')}, {intent_data.get('cuisine_filters')}"
-        emotion = intent_data.get('emotion', 'neutral')
-        tone = "위로하는 톤" if emotion == "negative" else "밝은 톤"
-        
-        prompt = f"""점심 추천 멘트 작성 ({tone}):
+    name = choice['name']
+    category = choice.get('category', '')
+    area = choice.get('area', '')
+    tags = choice.get('tags', [])
+    
+    context = f"상황: {intent_data.get('weather')}, {intent_data.get('mood')}, {intent_data.get('cuisine_filters')}"
+    emotion = intent_data.get('emotion', 'neutral')
+    tone = "위로하는 톤" if emotion == "negative" else "밝은 톤"
+    prefix = build_emotion_prefix(intent_data)
+    
+    prompt = f"""점심 추천 멘트 작성 ({tone}):
 사용자: "{utterance}"
 메뉴: {name} ({category}, {area})
 특징: {', '.join(tags)}
@@ -351,11 +492,12 @@ def generate_response_with_gemini(utterance: str, choice: dict, intent_data: Dic
 📍 위치: {area}
 🍽️ 종류: {category}"""
 
-        response = gemini_model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        print(f"Recommend response fail: {e}")
-        return generate_response_message(choice, intent_data)
+    response_text = await run_gemini_with_timeout(
+        gemini_model, prompt, GENERATION_TIMEOUT_SEC, "Recommend response"
+    )
+    if response_text:
+        return prefix + response_text
+    return prefix + generate_response_message(choice, intent_data)
 
 
 def generate_response_message(choice: dict, intent_data: Dict) -> str:
@@ -371,30 +513,80 @@ def generate_response_message(choice: dict, intent_data: Dict) -> str:
     mood = intent_data.get('mood')
     emotion = intent_data.get('emotion', 'neutral')
     
-    # 상황별 멘트
-    prefix = ""
-    if emotion == "negative":
-        prefix = "힘든 하루시네요 😔 든든하고 맛있는 걸로 기운 내세요! "
-    elif cuisine_filters:
-        prefix = f"{', '.join(cuisine_filters)} 좋아하시는군요! "
-    elif weather == "비":
-        prefix = "비 오는 날엔 이게 최고죠! 🌧️ "
-    elif weather == "눈":
-        prefix = "눈 오는 날엔 따뜻한 게 최고! ❄️ "
-    elif weather == "더위":
-        prefix = "더울 땐 시원한 게 최고! ☀️ "
-    elif weather == "추위":
-        prefix = "추울 땐 따뜻한 게 최고! 🥶 "
-    elif mood == "피곤":
-        prefix = "피곤할 땐 든든하게! 💪 "
-    elif mood == "행복":
-        prefix = "기분 좋은 날엔 맛있는 걸로! 😊 "
-    elif mood == "우울":
-        prefix = "기분 전환이 필요하시군요! 🌈 "
-    elif mood == "화남":
-        prefix = "맛있는 거 먹고 풀어요! 😤 "
+    # 감정/기분 고정 프리픽스
+    emotion_prefix = build_emotion_prefix(intent_data)
     
-    return f"{prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}"
+    # 상황별 멘트
+    import random
+    
+    # 상황별 멘트 리스트
+    prefixes = []
+    
+    if emotion == "negative" and not emotion_prefix:
+        prefixes = [
+            "힘든 하루시네요 😔 든든하고 맛있는 걸로 기운 내세요! ",
+            "저런... 😢 맛있는 거 먹고 털어버려요! ",
+            "기분이 안 좋으실 땐 맛있는 게 약이죠! 💊 "
+        ]
+    elif cuisine_filters:
+        f_str = ', '.join(cuisine_filters)
+        prefixes = [
+            f"{f_str} 좋아하시는군요! ",
+            f"오늘은 {f_str} 당기시는 날! ",
+            f"{f_str} 맛집을 찾아봤어요! "
+        ]
+    elif weather == "비":
+        prefixes = [
+            "비 오는 날엔 이게 최고죠! 🌧️ ",
+            "비도 오고 그래서... ☔ ",
+            "빗소리 들으면서 먹기 좋은 메뉴! "
+        ]
+    elif weather == "눈":
+        prefixes = [
+            "눈 오는 날엔 따뜻한 게 최고! ❄️ ",
+            "하얀 눈 보면서 먹으면 더 맛있죠! ☃️ ",
+            "추위 녹이는 따뜻한 메뉴! "
+        ]
+    elif weather == "더위":
+        prefixes = [
+            "더울 땐 시원한 게 최고! ☀️ ",
+            "이열치열, 혹은 시원하게! 🧊 ",
+            "더위에 지치지 마세요! "
+        ]
+    elif weather == "추위":
+        prefixes = [
+            "추울 땐 따뜻한 게 최고! 🥶 ",
+            "뜨끈한 국물이 생각나는 날씨죠! ",
+            "몸 녹이는 데는 이게 딱이에요! "
+        ]
+    elif mood == "피곤":
+        prefixes = [
+            "피곤할 땐 든든하게! 💪 ",
+            "지친 몸엔 맛있는 밥이 보약! ",
+            "에너지 충전 하세요! ⚡ "
+        ]
+    elif mood == "행복":
+        prefixes = [
+            "기분 좋은 날엔 맛있는 걸로! 😊 ",
+            "오늘 같은 날은 파티죠! 🎉 ",
+            "행복한 기분 그대로 맛있는 식사! "
+        ]
+    elif mood == "우울":
+        prefixes = [
+            "기분 전환이 필요하시군요! 🌈 ",
+            "우울할 땐 맛있는 거 앞으로! ",
+            "달달하거나 매콤한 거 어떠세요? "
+        ]
+    elif mood == "화남":
+        prefixes = [
+            "맛있는 거 먹고 풀어요! 😤 ",
+            "스트레스엔 역시 먹는 거죠! 🔥 ",
+            "매운 거나 맛있는 걸로 힐링해요! "
+        ]
+    
+    selected_prefix = random.choice(prefixes) if prefixes else ""
+    
+    return f"{emotion_prefix}{selected_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}"
 
 
 @app.post("/api/lunch")
@@ -575,12 +767,20 @@ async def recommend_lunch(payload: SkillPayload):
     # (복잡한 문장이나 감정 표현이 섞인 경우는 Gemini로 넘김)
     is_simple_request = len(utterance) < 15 and any(k in utterance for k in ["추천", "메뉴", "점심", "밥", "뭐먹", "배고파", "랜덤"])
     
-    if is_simple_request or not GEMINI_AVAILABLE:
-        print("⚡ Fast Track: Using Regex Engine")
+    # Fast Track: 단순 요청이면 LLM 건너뛰기
+    if is_simple_request:
+        print("⚡ Fast Track: Skipping Gemini (Simple Request)")
         intent_data = analyze_intent_fallback(utterance)
+        # Fast Track에서는 응답 생성도 Fallback(Template) 사용 강제
+        GEMINI_AVAILABLE_FOR_REQUEST = False 
+    elif not GEMINI_AVAILABLE:
+        print("⚡ Fallback: Gemini Not Available")
+        intent_data = analyze_intent_fallback(utterance)
+        GEMINI_AVAILABLE_FOR_REQUEST = False
     else:
         # 복잡한 문장 -> Gemini 사용
         intent_data = await analyze_intent_with_gemini(utterance, conversation_history)
+        GEMINI_AVAILABLE_FOR_REQUEST = True
     
     intent = intent_data.get("intent", "recommend")
     casual_type = intent_data.get("casual_type")
@@ -614,7 +814,13 @@ async def recommend_lunch(payload: SkillPayload):
                                 "- \"이유가 뭐야?\"\n"
                                 "- \"이 가게 어디야?\"\n"
                                 "- \"지금 날씨 어때?\" (NEW!)\n\n"
-                                "3️⃣ **자유로운 대화 (AI)**\n"
+                                "3️⃣ **기분/상황 맞춤**\n"
+                                "- \"빡치는데 매운 거\"\n"
+                                "- \"우울한데 뭐 먹지\"\n"
+                                "- \"피곤한데 든든한 거\"\n"
+                                "- \"행복한 날 고기\"\n"
+                                "- \"다이어트 메뉴\"\n\n"
+                                "4️⃣ **자유로운 대화 (AI)**\n"
                                 "- \"부장님 때문에 힘들어\"\n"
                                 "- \"오늘 기분이 좋아\"\n"
                                 "- 위로, 잡담, 하소연 등 아무 말이나 하셔도 다 받아줍니다! 🗣️✨"
@@ -640,8 +846,8 @@ async def recommend_lunch(payload: SkillPayload):
     
     if intent == "casual":
         # 일상 대화
-        if GEMINI_AVAILABLE:
-            casual_response = generate_casual_response_with_gemini(utterance, casual_type, conversation_history)
+        if GEMINI_AVAILABLE_FOR_REQUEST:
+            casual_response = await generate_casual_response_with_gemini(utterance, casual_type, conversation_history)
         else:
             casual_response = generate_casual_response_fallback(casual_type)
         
@@ -670,8 +876,8 @@ async def recommend_lunch(payload: SkillPayload):
             if choice:
                 session_manager.set_last_recommendation(user_id, choice)
                 # 일상 대화 + 추천 결합
-                if GEMINI_AVAILABLE:
-                    menu_response = generate_response_with_gemini(utterance, choice, intent_data, conversation_history)
+                if GEMINI_AVAILABLE_FOR_REQUEST:
+                    menu_response = await generate_response_with_gemini(utterance, choice, intent_data, conversation_history)
                 else:
                     menu_response = generate_response_message(choice, intent_data)
                 response_text = f"{casual_response}\n\n그나저나 점심은 드셨어요? 오늘은 이 메뉴 어떠세요?\n\n{menu_response}"
@@ -694,10 +900,10 @@ async def recommend_lunch(payload: SkillPayload):
             weather = actual_weather or intent_data.get("weather")
             mood = intent_data.get("mood")
             
-            if GEMINI_AVAILABLE:
-                response_text = generate_explanation_with_gemini(utterance, last_rec, conversation_history, weather, mood)
+            if GEMINI_AVAILABLE_FOR_REQUEST:
+                response_text = await generate_explanation_with_gemini(utterance, last_rec, conversation_history, weather, mood)
             else:
-                response_text = f"{last_rec['name']}을(를) 추천한 이유는 맛있고 인기 있는 메뉴이기 때문이에요! 😊"
+                response_text = generate_explanation_fallback(last_rec, weather, mood)
         else:
             response_text = "아직 추천드린 메뉴가 없어요. 점심 추천해드릴까요? 😊"
         session_manager.add_conversation(user_id, "user", utterance)
@@ -722,8 +928,8 @@ async def recommend_lunch(payload: SkillPayload):
         
         if choice:
             session_manager.set_last_recommendation(user_id, choice)
-            if GEMINI_AVAILABLE:
-                response_text = f"알겠습니다! 그럼 다른 메뉴로 추천드릴게요 😊\n\n" + generate_response_with_gemini(utterance, choice, intent_data, conversation_history)
+            if GEMINI_AVAILABLE_FOR_REQUEST:
+                response_text = f"알겠습니다! 그럼 다른 메뉴로 추천드릴게요 😊\n\n" + await generate_response_with_gemini(utterance, choice, intent_data, conversation_history)
             else:
                 response_text = f"알겠습니다! 그럼 다른 메뉴로 추천드릴게요 😊\n\n" + generate_response_message(choice, intent_data)
             session_manager.add_conversation(user_id, "user", utterance, choice)
@@ -754,8 +960,8 @@ async def recommend_lunch(payload: SkillPayload):
         
         if choice:
             session_manager.set_last_recommendation(user_id, choice)
-            if GEMINI_AVAILABLE:
-                response_text = generate_response_with_gemini(utterance, choice, intent_data, conversation_history)
+            if GEMINI_AVAILABLE_FOR_REQUEST:
+                response_text = await generate_response_with_gemini(utterance, choice, intent_data, conversation_history)
             else:
                 response_text = generate_response_message(choice, intent_data)
             session_manager.add_conversation(user_id, "user", utterance, choice)

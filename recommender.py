@@ -8,7 +8,7 @@ except ImportError:
     requests = None
 
 import lunch_data
-from lunch_data import TAG_SOUP, TAG_HOT, TAG_NOODLE, TAG_SPICY, TAG_HEAVY, TAG_LIGHT, TAG_MEAT, TAG_RICE
+from lunch_data import TAG_SOUP, TAG_HOT, TAG_NOODLE, TAG_SPICY, TAG_HEAVY, TAG_LIGHT, TAG_MEAT, TAG_RICE, TAG_PREMIUM
 from history_manager import LunchHistory
 
 class LunchRecommender:
@@ -140,31 +140,41 @@ class LunchRecommender:
         # 여기서는 이미 갱신된 lunch_data.MENUS를 다시 바인딩
         self.menus = lunch_data.MENUS
 
-    def recommend(self, weather=None, cuisine_filters=None, mood=None):
+    def recommend(self, weather=None, cuisine_filters=None, mood=None, excluded_menus=None):
         """
         추천 로직:
         1. 최근 먹은 메뉴(2일 내) 제외
-        2. 쿠진(Cuisine) 필터링
-        3. 날씨 가중치 부여
-        4. 기분(Mood) 가중치 부여
+        2. 제외 리스트(excluded_menus) 제외 (재추천 시 사용)
+        3. 쿠진(Cuisine) 필터링
+        4. 날씨 가중치 부여
+        5. 기분(Mood) 가중치 부여
         """
-        # 데이터가 갱신되었을 수 있으므로 다시 로드 (혹은 self.menus 사용)
-        # self.menus가 초기화 안되어있으면 로드
+        # 데이터 갱신 확인
         if not hasattr(self, 'menus'):
             self.refresh_data()
             
         # 1. 필터링 (최근 먹은 것 제외)
         recent_eaten = self.history_mgr.get_recent_menus(days=2)
-        candidates = [m for m in self.menus if m['name'] not in recent_eaten]
+        
+        # 제외 목록 통합
+        final_excluded = set(recent_eaten)
+        if excluded_menus:
+            final_excluded.update(excluded_menus)
+            
+        candidates = [m for m in self.menus if m['name'] not in final_excluded]
 
         # 2. 쿠진 필터링
         if cuisine_filters:
             candidates = [m for m in candidates if m.get('cuisine') in cuisine_filters]
 
+        # 후보가 없으면 필터 완화 (제외 목록은 유지하되, 쿠진 필터만 해제 고민... 일단은 쿠진 필터 우선 해제)
         if not candidates:
             if cuisine_filters:
-                 candidates = [m for m in self.menus if m.get('cuisine') in cuisine_filters]
-            else:
+                 # 쿠진 필터만 해제하고 다시 시도
+                 candidates = [m for m in self.menus if m['name'] not in final_excluded]
+            
+            # 그래도 없으면... 어쩔 수 없이 전체에서 다시 뽑음 (최근 먹은거라도)
+            if not candidates:
                  candidates = self.menus
 
         if not candidates:
@@ -191,42 +201,81 @@ class LunchRecommender:
                 # 국물 없는 메뉴: 감점 (-10점)
                 else:
                     score -= 10
-            elif weather == "더움":
+            
+            elif weather == "더위" or weather == "더움":
                 # 뜨거운 메뉴: 큰 감점 (-15점)
                 if TAG_HOT in tags:
                     score -= 15
-                # 가벼운 메뉴: 가산점 (+10점)
+                # 시원한/가벼운 메뉴: 가산점 (+15점)
+                if TAG_LIGHT in tags or TAG_NOODLE in tags: # 냉면 등 가정
+                    score += 15
+            
+            elif weather == "추위":
+                # 따뜻한 국물: 최우선 (+20점)
+                if TAG_SOUP in tags and TAG_HOT in tags:
+                    score += 20
+                # 그냥 따뜻한거: 우선 (+15점)
+                elif TAG_HOT in tags:
+                    score += 15
+                # 차가운거: 감점 (-20점)
+                elif TAG_LIGHT in tags: 
+                    score -= 20
+
+            elif weather == "맑음":
+                # 딱히 가리는 거 없음, 가벼운 거 살짝 우대?
                 if TAG_LIGHT in tags:
-                    score += 10
+                    score += 5
 
             # 기분 반영 (보통, 화남, 행복, 우울, 피곤)
-            if mood == "화남": # 매운거, 묵직한거
+            if mood == "화남": # 매운거, 국물, 고기/밥 강추
+                if TAG_SPICY in tags: score += 20
+                if TAG_SOUP in tags or TAG_HOT in tags: score += 12
+                if TAG_MEAT in tags: score += 8
+                if TAG_RICE in tags: score += 5
+                if TAG_LIGHT in tags: score -= 8
+            elif mood == "행복": # 고기, 풍미 있는 메뉴
+                if TAG_MEAT in tags: score += 8
+                if TAG_PREMIUM in tags: score += 5
+            elif mood == "우울": # 든든/탄수/국물/매운거
+                if TAG_RICE in tags and TAG_MEAT in tags: score += 15
+                if TAG_SOUP in tags: score += 10
+                if TAG_HEAVY in tags: score += 8
                 if TAG_SPICY in tags: score += 5
-                if TAG_HEAVY in tags: score += 3
-            elif mood == "행복": # 고기, 맛있는거
-                if TAG_MEAT in tags: score += 5
-            elif mood == "우울": # 달달한게 없으니... 탄수화물/고기?
-                if TAG_HEAVY in tags or TAG_MEAT in tags: score += 3
-                if TAG_SPICY in tags: score += 3 # (매운걸로 풀기)
-            elif mood == "피곤": # 고기, 밥 (든든)
-                # 고기+밥 조합: 최고 (+15점)
+                if TAG_LIGHT in tags: score -= 5
+            elif mood == "피곤": # 에너지 보충
                 if TAG_RICE in tags and TAG_MEAT in tags:
-                    score += 15
-                # 국물+고기 조합: 우수 (+12점)
+                    score += 20
                 elif TAG_SOUP in tags and TAG_MEAT in tags:
-                    score += 12
-                # 그냥 고기나 밥: 보통 (+4점)
+                    score += 15
                 elif TAG_RICE in tags or TAG_MEAT in tags:
-                    score += 4
-                
+                    score += 8
+                if TAG_LIGHT in tags: score -= 5
+            elif mood == "플렉스": # 비싼거, 법카 (Premium)
+                if TAG_PREMIUM in tags:
+                    score += 60  # 무조건 우선
+                elif TAG_MEAT in tags and TAG_HEAVY in tags:
+                    score += 15  # 고기+든든함 차선책
+                else:
+                    score -= 30  # 플렉스 찾는데 가벼운 메뉴는 제외
+            elif mood == "다이어트": # 가볍게
+                if TAG_LIGHT in tags:
+                    score += 60
+                elif TAG_HEAVY in tags or TAG_PREMIUM in tags:
+                    score -= 60 # 다이어트인데 무거운/플렉스 금지
+                elif TAG_MEAT in tags:
+                    score -= 10
+
             weighted_candidates.append((menu, score))
 
         # 4. 선택
         total_score = sum(score for _, score in weighted_candidates)
-        pick = random.choices(
-            [m for m, _ in weighted_candidates], 
-            weights=[s for _, s in weighted_candidates], 
-            k=1
-        )[0]
+        if total_score <= 0: # 점수가 다 깎여서 0 이하가 되면 균등 확률
+             pick = random.choice([m for m, _ in weighted_candidates])
+        else:
+            pick = random.choices(
+                [m for m, _ in weighted_candidates], 
+                weights=[s for _, s in weighted_candidates], 
+                k=1
+            )[0]
         
         return pick

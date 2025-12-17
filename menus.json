@@ -192,7 +192,7 @@
     },
     {
         "name": "솔솥",
-        "area": "건너편 먹자골목",
+        "area": "회사 지하식당",
         "category": "솥밥",
         "cuisine": "한식",
         "tags": [
@@ -200,6 +200,27 @@
             "hot",
             "heavy",
             "meat"
+        ]
+    },
+    {
+        "name": "양산도",
+        "area": "회사 1층",
+        "category": "장어덮밥",
+        "cuisine": "일식",
+        "tags": [
+            "rice",
+            "heavy",
+            "meat",
+            "premium"
+        ]
+    },
+    {
+        "name": "I got everything",
+        "area": "회사 지하식당",
+        "category": "샐러드/커피",
+        "cuisine": "양식",
+        "tags": [
+            "light"
         ]
     }
 ]

@@ -439,15 +439,6 @@ with tab2:
                 except:
                     table_front = ""
                 
-                # Create Back Image with Menu Name (동적 생성)
-                try:
-                    # 뒷면 이미지 동적 생성
-                    img = Image.new('RGB', (900, 900), (224, 224, 224))
-                    draw = ImageDraw.Draw(img)
-                    
-                    # 원형 테이블 밑면 (깔끔하게, 마크 없이)
-                    draw.ellipse((0, 0, 900, 900), fill=(101, 67, 33))
-                    
                 # Create Back Image (텍스트 없이 이미지만)
                 try:
                     img = Image.new('RGB', (900, 900), (224, 224, 224))

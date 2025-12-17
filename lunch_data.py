@@ -20,6 +20,7 @@ TAG_NOODLE = "noodle"    # 면
 TAG_RICE = "rice"        # 밥
 TAG_MEAT = "meat"        # 고기
 TAG_HOT = "hot"          # 뜨거운 요리
+TAG_PREMIUM = "premium"    # 비싼/고급 (월급날, 법카 등)
 
 # 음식 종류 (Cuisine)
 CUISINE_KOREAN = "한식"
