@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any, List
 import uvicorn
 import recommender
 import os
+import random
 from dotenv import load_dotenv
 from session_manager import session_manager
 from rate_limiter import rate_limiter
