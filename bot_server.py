@@ -5,6 +5,7 @@ import uvicorn
 import recommender
 import os
 import random
+import random
 from dotenv import load_dotenv
 from session_manager import session_manager
 from rate_limiter import rate_limiter
@@ -765,12 +766,18 @@ async def recommend_lunch(payload: SkillPayload):
             }
         }
 
-    # 4.2 명확한 추천 키워드가 있는 경우 -> Regex 엔진 사용 (Fast Track)
+    # 4.2 명확한 키워드가 있는 경우 -> Regex 엔진 사용 (Fast Track)
     # (복잡한 문장이나 감정 표현이 섞인 경우는 Gemini로 넘김)
+    utterance_lower = utterance.lower()
+    is_help_request = any(k in utterance_lower for k in ["도움", "도움말", "사용법", "설명", "help", "어떻게", "기능"])
     is_simple_request = len(utterance) < 15 and any(k in utterance for k in ["추천", "메뉴", "점심", "밥", "뭐먹", "배고파", "랜덤"])
     
-    # Fast Track: 단순 요청이면 LLM 건너뛰기
-    if is_simple_request:
+    # Fast Track: 도움말/단순 요청이면 LLM 건너뛰기
+    if is_help_request:
+        print("⚡ Fast Track: Help Request")
+        intent_data = analyze_intent_fallback(utterance)
+        GEMINI_AVAILABLE_FOR_REQUEST = False
+    elif is_simple_request:
         print("⚡ Fast Track: Skipping Gemini (Simple Request)")
         intent_data = analyze_intent_fallback(utterance)
         # Fast Track에서는 응답 생성도 Fallback(Template) 사용 강제
