@@ -3,6 +3,9 @@ chcp 65001
 cd /d "%~dp0"
 
 echo [INFO] 점심 추천 봇 서버(Kakao) 실행 준비 중...
+echo [INFO] 최신 코드를 받아옵니다 (Git Pull)...
+git pull
+echo.
 
 
 REM Try to find Python
