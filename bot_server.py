@@ -83,7 +83,8 @@ WEATHER_KEYWORDS = {
     "비": ["비", "우산", "장마", "비오", "빗"],
     "눈": ["눈", "함박눈", "눈오", "눈이"],
     "더위": ["더워", "덥", "여름", "무더위", "더운"],
-    "추위": ["추워", "춥", "겨울", "한파", "추운", "쌀쌀"]
+    "추위": ["추워", "춥", "겨울", "쌀쌀"],
+    "한파": ["한파", "개춥", "너무춥", "얼어", "영하"]
 }
 
 MOOD_KEYWORDS = {
@@ -176,8 +177,8 @@ async def analyze_intent_with_gemini(utterance: str, conversation_history: List[
 2. casual_type: greeting, thanks, chitchat (casual일때)
 3. emotion: negative, neutral, positive
 4. filter: [한식, 중식, 일식, 양식, 분식]
-5. weather: 비, 눈, 더위, 추위
-6. mood: 피곤, 행복, 우울, 화남, 다이어트
+5. weather: 비, 눈, 더위, 추위, 한파
+6. mood: 피곤, 행복, 우울, 화남, 다이어트, 플렉스
 
 JSON만 출력:"""
 
@@ -307,6 +308,8 @@ def generate_explanation_fallback(rec: Dict, weather: Optional[str] = None, mood
         reasons.append("비 오는 날 든든하게 드시라고")
     elif weather in ["눈", "추위", "겨울", "한파"] and (has_soup or has_hot):
         reasons.append("추운 날 따뜻하게 드시라고")
+    elif weather == "한파" and rec.get('area') in ["회사 지하식당", "회사 1층"]:
+        reasons.append("날씨가 영하니까 나가지 말고 안에서 드시라고")
     elif weather in ["더위", "여름"] and has_light:
         reasons.append("더운 날 부담 없이 시원하게 드시라고")
     elif weather in ["더위", "여름"] and has_noodle:
@@ -727,7 +730,9 @@ async def recommend_lunch(payload: SkillPayload):
             if not actual_weather and current_temp:
                 try:
                     temp_value = float(current_temp.replace("°C", "").replace("℃", "").strip())
-                    if temp_value < 10:
+                    if temp_value < 0:
+                        actual_weather = "한파"
+                    elif temp_value < 10:
                         actual_weather = "추위"
                     elif temp_value > 28:
                         actual_weather = "더위"

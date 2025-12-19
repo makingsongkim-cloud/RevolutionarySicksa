@@ -220,6 +220,21 @@ class LunchRecommender:
                 # 차가운거: 감점 (-20점)
                 elif TAG_LIGHT in tags: 
                     score -= 20
+            
+            elif weather == "한파": # 영하 날씨 (NEW)
+                # 1. 위치 점수 (실내 우대)
+                if menu.get('area') in ["회사 지하식당", "회사 1층"]:
+                    score += 100  # 밖으로 나가지 말라고 강력 추천 (40->100)
+                else:
+                    score -= 50  # 밖에 나가는 건 감점 (-20->-50)
+                
+                # 2. 메뉴 점수
+                if TAG_SOUP in tags and TAG_HOT in tags:
+                    score += 20
+                elif TAG_HOT in tags:
+                    score += 15
+                elif TAG_LIGHT in tags:
+                    score -= 30 # 추운데 차가운건 절대 금지
 
             elif weather == "맑음":
                 # 딱히 가리는 거 없음, 가벼운 거 살짝 우대?
@@ -252,7 +267,7 @@ class LunchRecommender:
                 if TAG_LIGHT in tags: score -= 5
             elif mood == "플렉스": # 비싼거, 법카 (Premium)
                 if TAG_PREMIUM in tags:
-                    score += 60  # 무조건 우선
+                    score += 200  # 무조건 우선 (60->200)
                 elif TAG_MEAT in tags and TAG_HEAVY in tags:
                     score += 15  # 고기+든든함 차선책
                 else:
@@ -264,6 +279,18 @@ class LunchRecommender:
                     score -= 60 # 다이어트인데 무거운/플렉스 금지
                 elif TAG_MEAT in tags:
                     score -= 10
+            
+            # [NEW] 회사 1층(비싼 곳) 패널티 로직
+            # "플렉스" 모드가 아니고, "한파"도 아닐 때 -> 회사 1층 추천 제외 (점수 대폭 깎음)
+            # (단, 한파여도 플렉스가 아니면 1층이 비쌀 수 있으니... 사용자가 "비싸니 돈 많을 때만 추천해"라고 함)
+            # => 한파 때는 "실내"라는 장점이 크므로 패널티를 좀 줄이거나 상쇄해야 함. 
+            # 하지만 사용자가 "보통 여길 추천받으면 신뢰도가 떨어져"라고 했으므로, 플렉스 아닐 땐 기본적으로 막는게 맞음.
+            # 예외: 정말 나가기 싫은 "한파"일 때는 지하 vs 1층 중 지하가 우선되도록 유도.
+            if menu.get('area') == "회사 1층" and mood != "플렉스":
+                # 한파라서 실내 점수(+40)를 받았더라도, 비싸다는 인식이 강하므로 패널티 부여
+                # 한파(+40) - 패널티(??)
+                # 사용자는 "돈이 많을 때만 추천해야 한다"고 했음.
+                score -= 50 
 
             weighted_candidates.append((menu, score))
 

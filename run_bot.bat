@@ -51,7 +51,9 @@ pip install -r requirements.txt >nul
 
 echo.
 echo [INFO] 봇 서버를 실행합니다! (포트: 8000)
-echo [INFO] Ngrok 등으로 외부에서 접속 가능하게 해야 카톡이랑 연결됩니다.
+echo [INFO] Ngrok 터널링 프로그램도 새 창에서 같이 실행합니다.
+
+start "Ngrok Tunnel" call run_ngrok.bat
 echo.
 
 
