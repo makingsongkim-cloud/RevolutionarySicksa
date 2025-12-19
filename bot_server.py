@@ -138,14 +138,15 @@ def get_josa(word: str, particle_type: str) -> str:
 
 
 import asyncio
-INTENT_TIMEOUT_SEC = 3.5
-GENERATION_TIMEOUT_SEC = 2.5
+INTENT_TIMEOUT_SEC = 1.8
+GENERATION_TIMEOUT_SEC = 1.5
 
 async def run_gemini_with_timeout(model, prompt: str, timeout_sec: float, log_label: str):
-    """Execute Gemini call in a thread with a timeout and return text or None."""
+    """Execute Gemini call with a strict timeout and return text or None."""
     try:
-        result = await asyncio.wait_for(asyncio.to_thread(model.generate_content, prompt), timeout=timeout_sec)
-        return (result.text or "").strip()
+        # 가급적 자체 비동기 메서드 사용
+        response = await asyncio.wait_for(model.generate_content_async(prompt), timeout=timeout_sec)
+        return (response.text or "").strip()
     except asyncio.TimeoutError:
         print(f"{log_label} timeout after {timeout_sec}s")
     except Exception as e:
@@ -679,14 +680,14 @@ async def recommend_lunch(payload: SkillPayload):
             timeout=4.3,
         )
     except asyncio.TimeoutError:
-        print(f"🚨 [CRITICAL] Global Timeout hit for {user_id} ({utterance})")
+        duration = time.time() - total_start
+        print(f"🚨 [CRITICAL] Global Timeout hit for {user_id} ({utterance}) after {duration:.2f}s")
         return get_emergency_fallback_response("타임아웃")
     except Exception as e:
         print(f"🚨 [CRITICAL] Global Error hit for {user_id}: {e}")
         import traceback
-
         traceback.print_exc()
-        return get_emergency_fallback_response("서버 에러")
+        return get_emergency_fallback_response(f"서버 에러: {str(e)}")
 
 
 async def handle_recommendation_logic(
