@@ -91,8 +91,9 @@
         "name": "검은도마",
         "area": "회사 지하식당",
         "tags": [
+            "soup",
+            "rice",
             "meat",
-            "heavy",
             "hot"
         ],
         "category": "한식",
