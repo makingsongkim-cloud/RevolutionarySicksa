@@ -90,7 +90,7 @@ WEATHER_KEYWORDS = {
 }
 
 MOOD_KEYWORDS = {
-    "화남": ["화나", "짜증", "열받", "스트레스", "매운", "빡쳐"],
+    "화남": ["화나", "짜증", "열받", "스트레스", "매운", "빡쳐", "좆", "엿", "개같", "시발", "씨발"],
     "행복": ["행복", "기분좋", "신나", "즐거", "월급"],
     "우울": ["우울", "슬퍼", "꿀꿀", "다운"],
     "플렉스": ["비싼", "고급", "법카", "플렉스", "월급", "보너스", "돈지랄"],
@@ -278,8 +278,8 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
         if any(keyword in utterance_lower for keyword in keywords):
             tag_filters.append(tag)
             
-    # [NEW] 음식 키워드가 발견되면 무조건 추천 Intent로 고정
-    if (cuisine_filters or tag_filters) and intent != "reject":
+    # [NEW] 음식 키워드나 기분 키워드가 발견되면 무조건 추천 Intent로 고정
+    if (cuisine_filters or tag_filters or mood) and intent == "casual":
         intent = "recommend"
     
     # 날씨 추출
@@ -295,6 +295,10 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
         if any(keyword in utterance_lower for keyword in keywords):
             mood = mood_type
             break
+    # [NEW] 음식 키워드, 기분, 날씨 중 하나라도 발견되면 추천 Intent로 유도
+    if (cuisine_filters or tag_filters or mood or weather) and intent == "casual":
+        intent = "recommend"
+
     return {
         "intent": intent,
         "casual_type": casual_type,
@@ -838,8 +842,11 @@ async def handle_recommendation_logic(
     # 4.2 로컬 의도 분석 (Fallback) 선행 호출
     # 키워드 기반으로 1차 판단을 먼저 합니다.
     fast_intent = analyze_intent_fallback(utterance)
-    has_food_keyword = bool(
-        fast_intent.get("cuisine_filters") or fast_intent.get("tag_filters")
+    has_target_keyword = bool(
+        fast_intent.get("cuisine_filters") or 
+        fast_intent.get("tag_filters") or
+        fast_intent.get("mood") or
+        fast_intent.get("weather")
     )
     is_help_request = fast_intent.get("intent") == "help"
 
@@ -848,10 +855,10 @@ async def handle_recommendation_logic(
         print("⚡ Fast Track: Help Request (Skipping Gemini)")
         intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
-    elif has_food_keyword:
-        print("⚡ Smart Patch: Food Keyword Detected (Skipping Gemini Intent)")
+    elif has_target_keyword:
+        print("⚡ Smart Patch: Target Keyword Detected (Skipping Gemini Intent)")
         intent_data = fast_intent
-        # 음식 키워드가 있으면 intent를 'recommend'로 강제 (fallback 내부에서 처리되지만 확실히 함)
+        # 키워드가 있으면 intent를 'recommend'로 강제 (fallback 내부에서 처리되지만 확실히 함)
         intent_data["intent"] = "recommend"
         # 의도 분석은 스킵하지만, 응답 생성 시 Gemini 분위기 조성을 위해 GEMINI_AVAILABLE_FOR_REQUEST는 유지
         GEMINI_AVAILABLE_FOR_REQUEST = GEMINI_AVAILABLE
