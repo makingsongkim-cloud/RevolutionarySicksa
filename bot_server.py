@@ -782,8 +782,8 @@ async def recommend_lunch(payload: SkillPayload):
             print(f"날씨 가져오기 실패: {e}, 캐시 사용 또는 스킵")
             actual_weather = weather_cache.get("mapped_weather")  # 이전 캐시라도 사용
     
-    # 4. 의도 분석 (Hybrid: Simple Regex First -> Gemini Fallback)
-    # 단순/명확한 키워드는 정규식으로 처리하여 속도 및 API 사용량 절약
+    # 4. 의도 분석 (Hybrid: Fallback-First Logic)
+    # [Smart Patch] LLM이 틀리더라도 '음식 키워드'가 발견되면 recommend로 강제 고정합니다.
     
     # 4.1 "날씨" 질문 단독 처리 (Gemini 불필요)
     if "날씨" in utterance and len(utterance) < 10 and not any(k in utterance for k in ["추천", "메뉴", "점심", "밥"]):
@@ -806,35 +806,42 @@ async def recommend_lunch(payload: SkillPayload):
             }
         }
 
-    # 4.2 명확한 키워드가 있는 경우 -> Regex 엔진 사용 (Fast Track)
-    # (복잡한 문장이나 감정 표현이 섞인 경우는 Gemini로 넘김)
-    utterance_lower = utterance.lower()
-    is_help_request = any(k in utterance_lower for k in ["도움", "도움말", "사용법", "설명", "help", "어떻게", "기능"])
-    is_simple_request = len(utterance) < 15 and any(k in utterance for k in ["추천", "메뉴", "점심", "밥", "뭐먹", "배고파", "랜덤"])
-    
-    # Fast Track: 도움말/단순 요청이면 LLM 건너뛰기
+    # 4.2 로컬 의도 분석 (Fallback) 선행 호출
+    # 키워드 기반으로 1차 판단을 먼저 합니다.
+    fast_intent = analyze_intent_fallback(utterance)
+    has_food_keyword = bool(fast_intent.get("cuisine_filters") or fast_intent.get("tag_filters"))
+    is_help_request = fast_intent.get("intent") == "help"
+
+    # 4.3 의도 결정 로직 (Short-circuit)
     if is_help_request:
-        print("⚡ Fast Track: Help Request")
-        intent_data = analyze_intent_fallback(utterance)
+        print("⚡ Fast Track: Help Request (Skipping Gemini)")
+        intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
-    elif is_simple_request:
-        print("⚡ Fast Track: Skipping Gemini (Simple Request)")
-        intent_data = analyze_intent_fallback(utterance)
-        # Fast Track에서는 응답 생성도 Fallback(Template) 사용 강제
-        GEMINI_AVAILABLE_FOR_REQUEST = False 
+    elif has_food_keyword:
+        print("⚡ Smart Patch: Food Keyword Detected (Skipping Gemini Intent)")
+        intent_data = fast_intent
+        # 음식 키워드가 있으면 intent를 'recommend'로 강제 (fallback 내부에서 처리되지만 확실히 함)
+        intent_data["intent"] = "recommend"
+        # 의도 분석은 스킵하지만, 응답 생성 시 Gemini 분위기 조성을 위해 GEMINI_AVAILABLE_FOR_REQUEST는 유지
+        GEMINI_AVAILABLE_FOR_REQUEST = GEMINI_AVAILABLE
+    elif len(utterance) < 15 and any(k in utterance for k in ["점심", "밥", "뭐먹", "배고파", "랜덤"]):
+        print("⚡ Fast Track: Simple Recommend (Skipping Gemini)")
+        intent_data = fast_intent
+        GEMINI_AVAILABLE_FOR_REQUEST = False
     elif not GEMINI_AVAILABLE:
-        print("⚡ Fallback: Gemini Not Available")
-        intent_data = analyze_intent_fallback(utterance)
+        print("⚡ Fallback: Gemini Not Configured")
+        intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
     else:
-        # 복잡한 문장 -> Gemini 사용
+        # 키워드에 걸리지 않는 복잡한 문장이나 일상 대화만 Gemini 사용
+        print("🤖 Engine: Gemini Intent Analysis")
         intent_data = await analyze_intent_with_gemini(utterance, conversation_history)
         GEMINI_AVAILABLE_FOR_REQUEST = True
     
     intent = intent_data.get("intent", "recommend")
     casual_type = intent_data.get("casual_type")
     
-    print(f"User: {user_id} | Intent: {intent} | Utterance: '{utterance}' | Engine: {'Regex' if is_simple_request else 'Gemini'}")
+    print(f"User: {user_id} | Intent: {intent} | Utterance: '{utterance}'")
     
     # 5. 의도별 처리
     response_text = ""
