@@ -1064,11 +1064,6 @@ def get_final_kakao_response(text: str) -> Dict:
             "quickReplies": [
                 {"label": "🎲 랜덤 추천", "action": "message", "messageText": "랜덤 추천해줘"},
                 {"label": "⛅ 날씨 맞춤", "action": "message", "messageText": "날씨에 맞게 추천해줘"},
-                {
-                    "label": "✨ 오늘 내 기분은?",
-                    "action": "message",
-                    "messageText": "기분에 맞춰서 추천해줘",
-                },
                 {"label": "❓ 도움말", "action": "message", "messageText": "도움말"},
             ],
         },
