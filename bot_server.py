@@ -292,7 +292,6 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
         if any(keyword in utterance_lower for keyword in keywords):
             mood = mood_type
             break
-    
     return {
         "intent": intent,
         "casual_type": casual_type,
@@ -301,7 +300,6 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
         "weather": weather,
         "mood": mood,
         "tag_filters": tag_filters # [NEW] 태그 필터 추가
-    }
     }
 
 
@@ -947,7 +945,7 @@ async def recommend_lunch(payload: SkillPayload):
         last_rec = session_manager.get_last_recommendation(user_id)
         excluded_menus = []
         if last_rec and 'name' in last_rec:
-            history_menus.append(last_rec['name'])
+            excluded_menus.append(last_rec['name'])
         
         params = payload.action.params
         weather = params.get("weather") or intent_data.get("weather")
@@ -960,7 +958,7 @@ async def recommend_lunch(payload: SkillPayload):
             print(f"필터 적용: {intent_data.get('cuisine_filters')}, 태그: {tag_filters}")
         
         r = recommender.LunchRecommender()
-        choice = r.recommend(weather=actual_weather, cuisine_filters=intent_data.get("cuisine_filters"), mood=intent_data.get("mood"), excluded_menus=history_menus, tag_filters=tag_filters)
+        choice = r.recommend(weather=actual_weather, cuisine_filters=intent_data.get("cuisine_filters"), mood=intent_data.get("mood"), excluded_menus=excluded_menus, tag_filters=tag_filters)
         
         # (이전 추천과 같으면 다시 시도 로직은 recommend 내부 excluded_menus로 해결됨)
         
@@ -994,7 +992,9 @@ async def recommend_lunch(payload: SkillPayload):
         cuisine_filters = intent_data.get("cuisine_filters") or None
         
         r = recommender.LunchRecommender()
-        choice = r.recommend(weather=weather, cuisine_filters=cuisine_filters, mood=mood)
+        # [NEW] 태그 필터 추출 및 적용
+        tag_filters = intent_data.get('tag_filters', [])
+        choice = r.recommend(weather=weather, cuisine_filters=cuisine_filters, mood=mood, tag_filters=tag_filters)
         
         if choice:
             session_manager.set_last_recommendation(user_id, choice)
@@ -1024,21 +1024,8 @@ async def recommend_lunch(payload: SkillPayload):
     # -----------------------------------------------------------------
     # (공통) 모든 응답에 '바로가기 버튼(Quick Reply)' 붙이기 Update
     # -----------------------------------------------------------------
-    quick_replies = [
-        {
-            "label": "🎲 랜덤 추천",
-            "action": "message",
-            "messageText": "랜덤"
-        },
-        {
-            "label": "❓ 도움말",
-            "action": "message",
-            "messageText": "도움말"
-        }
-    ]
-    
-    if "template" in response:
-        response["template"]["quickReplies"] = quick_replies
+    # 리치 메뉴(고정 메뉴) 도입으로 인해 화면을 깔끔하게 유지하기 위해 
+    # 기본 퀵 리플라이는 제거합니다. (필요 시에만 개별 추가)
     
     return response
 
