@@ -1013,9 +1013,9 @@ async def handle_recommendation_logic(
         # 추천이 포함된 응답일 때만 적용
         if "추천" in response_text or "어떠세요" in response_text:
             if retry_count == 4:
-                retry_prefix = "🤔 음... 슬슬 고르실 때가 된 것 같은데... 다시 골라봤어요!\n\n"
+                retry_prefix = "🤔 음... 도대체 뭘 잡숩고 싶으신 겁니까? ㅋㅋㅋ 일단 다시 한번 골라봤어요!\n\n"
             elif retry_count == 5:
-                retry_prefix = "😱 에이~ 마스터님! 이 정도면 그냥 아무거나 드셔요! 점심시간 다 가겠어요! ㅋㅋㅋ\n\n"
+                retry_prefix = "😱 마스터님! 이럴 거면 왜 물어보세요? 아무거나 얼른 드셔요! 점심시간 다 가겠어요! ㅋㅋㅋ\n\n"
             elif retry_count >= 6:
                 retry_prefix = "😭 저기요... 저도 이제 힘들어요... 흑흑.. 그냥 아까 추천드린 것 중에 하나 드시죠! 마지막이에요!\n\n"
     
