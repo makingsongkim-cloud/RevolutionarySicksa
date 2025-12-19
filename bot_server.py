@@ -849,9 +849,14 @@ async def handle_recommendation_logic(
         fast_intent.get("weather")
     )
     is_help_request = fast_intent.get("intent") == "help"
+    is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
 
     # 4.3 의도 결정 로직 (Short-circuit)
-    if is_help_request:
+    if is_welcome_event:
+        print("⚡ Fast Track: Welcome Event")
+        intent_data = {"intent": "casual", "casual_type": "greeting"}
+        GEMINI_AVAILABLE_FOR_REQUEST = False
+    elif is_help_request:
         print("⚡ Fast Track: Help Request (Skipping Gemini)")
         intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
