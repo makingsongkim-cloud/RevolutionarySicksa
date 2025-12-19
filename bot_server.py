@@ -1005,8 +1005,24 @@ async def handle_recommendation_logic(
         else:
             response_text = "추천할 만한 메뉴가 없어요 ㅠㅠ 조건을 바꿔보세요."
 
-    # 6. Kakao Skill Response 구성
-    return get_final_kakao_response(response_text)
+    # 6. 재시도 횟수에 따른 멘트 추가 (Sticky Retry Logic)
+    retry_count = session.get("recommendation_count", 0)
+    retry_prefix = ""
+    
+    if intent in ["recommend", "reject", "casual"]:
+        # 추천이 포함된 응답일 때만 적용
+        if "추천" in response_text or "어떠세요" in response_text:
+            if retry_count == 4:
+                retry_prefix = "🤔 음... 슬슬 고르실 때가 된 것 같은데... 다시 골라봤어요!\n\n"
+            elif retry_count == 5:
+                retry_prefix = "😱 에이~ 마스터님! 이 정도면 그냥 아무거나 드셔요! 점심시간 다 가겠어요! ㅋㅋㅋ\n\n"
+            elif retry_count >= 6:
+                retry_prefix = "😭 저기요... 저도 이제 힘들어요... 흑흑.. 그냥 아까 추천드린 것 중에 하나 드시죠! 마지막이에요!\n\n"
+    
+    final_text = f"{retry_prefix}{response_text}"
+
+    # 7. Kakao Response 구성
+    return get_final_kakao_response(final_text)
 
 
 def get_emergency_fallback_response(reason: str) -> Dict:

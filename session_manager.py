@@ -59,10 +59,11 @@ class SessionManager:
     
     def set_last_recommendation(self, user_id: str, recommendation: Dict[str, Any]):
         """
-        마지막 추천 정보를 저장합니다.
+        마지막 추천 정보를 저장하고 카운트를 증가시킵니다.
         """
         session = self.get_session(user_id)
         session["last_recommendation"] = recommendation
+        session["recommendation_count"] = session.get("recommendation_count", 0) + 1
     
     def get_last_recommendation(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -97,6 +98,7 @@ class SessionManager:
             "last_updated": datetime.now(),
             "conversation_history": [],
             "last_recommendation": None,
+            "recommendation_count": 0,
             "preferences": {}
         }
     
