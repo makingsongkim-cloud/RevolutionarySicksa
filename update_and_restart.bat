@@ -25,6 +25,8 @@ echo Git Pull 완료!
 echo.
 
 echo [3/3] 봇 서버 시작 중...
+start "Ngrok Tunnel" call run_ngrok.bat
+timeout /t 1 /nobreak >nul
 start "DDMC Bot Server" python bot_server.py
 timeout /t 2 /nobreak >nul
 echo.
