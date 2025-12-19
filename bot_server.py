@@ -445,17 +445,24 @@ def generate_casual_response_fallback(casual_type: str) -> str:
         return random.choice(messages)
 
 
-def build_emotion_prefix(intent_data: Dict) -> str:
+def build_emotion_prefix(intent_data: Dict, choice: Optional[Dict] = None) -> str:
     """감정/기분에 따라 멘트 앞머리 고정."""
     mood = intent_data.get("mood")
     emotion = intent_data.get("emotion")
     
+    # 메뉴가 '가벼운' 것인지 확인
+    is_light = False
+    if choice and "light" in choice.get("tags", []):
+        is_light = True
+    
     if mood == "화남":
-        return "화 풀 땐 매콤하게! 🔥\n"
+        return "맛있는 거 먹고 화 풀어요! 🔥\n"
     if mood == "우울":
-        return "기분 전환엔 든든하게! 🌈\n"
+        return "기분 전환엔 맛있는 게 최고! 🌈\n"
     if mood == "피곤":
-        return "에너지 채우는 한 끼! 💪\n"
+        if is_light:
+            return "지친 몸에 부담 없는 에너지! ⚡\n"
+        return "에너지 채우는 든든한 한 끼! 💪\n"
     if mood == "행복":
         return "기분 좋은 날엔 맛있는 걸로! 😊\n"
     if mood == "플렉스":
@@ -464,7 +471,9 @@ def build_emotion_prefix(intent_data: Dict) -> str:
         return "가볍게 관리하는 날! 🥗\n"
     
     if emotion == "negative":
-        return "힘든 날엔 든든하게! 🙏\n"
+        if is_light:
+            return "지친 마음을 달래줄 깔끔한 한 끼! 🙏\n"
+        return "힘든 날엔 든든하게 먹고 기운 내요! 🙏\n"
     if emotion == "positive":
         return "좋은 기분 이어가요! 😄\n"
     return ""
@@ -546,7 +555,7 @@ def generate_response_message(choice: dict, intent_data: Dict) -> str:
     emotion = intent_data.get('emotion', 'neutral')
     
     # 감정/기분 고정 프리픽스
-    emotion_prefix = build_emotion_prefix(intent_data)
+    emotion_prefix = build_emotion_prefix(intent_data, choice)
     
     # 상황별 멘트
     import random
@@ -554,12 +563,22 @@ def generate_response_message(choice: dict, intent_data: Dict) -> str:
     # 상황별 멘트 리스트
     prefixes = []
     
+    tags = choice.get('tags', [])
+    is_light = "light" in tags
+    
     if emotion == "negative" and not emotion_prefix:
-        prefixes = [
-            "힘든 하루시네요 😔 든든하고 맛있는 걸로 기운 내세요! ",
-            "저런... 😢 맛있는 거 먹고 털어버려요! ",
-            "기분이 안 좋으실 땐 맛있는 게 약이죠! 💊 "
-        ]
+        if is_light:
+            prefixes = [
+                "기분이 안 좋으실 땐 깔끔한 음식으로 힐링해봐요! 🌿 ",
+                "저런... 😢 맛있는 거 먹고 털어버려요! ",
+                "기분 전환에는 가볍고 맛있는 게 최고죠! 🥗 "
+            ]
+        else:
+            prefixes = [
+                "힘든 하루시네요 😔 든든하고 맛있는 걸로 기운 내세요! ",
+                "저런... 😢 맛있는 거 먹고 털어 버려요! ",
+                "기분이 안 좋으실 땐 맛있는 게 약이죠! 💊 "
+            ]
     elif cuisine_filters:
         f_str = ', '.join(cuisine_filters)
         prefixes = [
@@ -592,11 +611,18 @@ def generate_response_message(choice: dict, intent_data: Dict) -> str:
             "몸 녹이는 데는 이게 딱이에요! "
         ]
     elif mood == "피곤":
-        prefixes = [
-            "피곤할 땐 든든하게! 💪 ",
-            "지친 몸엔 맛있는 밥이 보약! ",
-            "에너지 충전 하세요! ⚡ "
-        ]
+        if is_light:
+            prefixes = [
+                "피곤할 땐 부담 없는 메뉴로 속 편하게! 🍵 ",
+                "지친 몸에 에너지를 주는 깔끔한 메뉴! ",
+                "가볍게 먹고 푹 쉬세요! ⚡ "
+            ]
+        else:
+            prefixes = [
+                "피곤할 땐 든든하게! 💪 ",
+                "지친 몸엔 맛있는 밥이 보약! ",
+                "에너지 충전 하세요! ⚡ "
+            ]
     elif mood == "행복":
         prefixes = [
             "기분 좋은 날엔 맛있는 걸로! 😊 ",
@@ -604,22 +630,29 @@ def generate_response_message(choice: dict, intent_data: Dict) -> str:
             "행복한 기분 그대로 맛있는 식사! "
         ]
     elif mood == "우울":
-        prefixes = [
-            "기분 전환이 필요하시군요! 🌈 ",
-            "우울할 땐 맛있는 거 앞으로! ",
-            "달달하거나 매콤한 거 어떠세요? "
-        ]
+        if is_light:
+            prefixes = [
+                "기분 전환엔 깔끔하고 시원한 거 어떠세요? 🌈 ",
+                "우울할 땐 가벼운 산책과 맛있는 한 끼! ",
+                "기분 좋아지는 예쁜 메뉴로 골랐어요! "
+            ]
+        else:
+            prefixes = [
+                "기분 전환이 필요하시군요! 🌈 ",
+                "우울할 땐 맛있는 거 앞으로! ",
+                "든든한 거 먹고 기분 풀어봐요! "
+            ]
     elif mood == "화남":
         prefixes = [
             "맛있는 거 먹고 풀어요! 😤 ",
             "스트레스엔 역시 먹는 거죠! 🔥 ",
-            "매운 거나 맛있는 걸로 힐링해요! "
+            "맛있는 걸로 힐링하고 기분 풀어보세요! "
         ]
     
     # 비 오는 날 전용 팁
     rain_tip = ""
     if weather == "비":
-        rain_tip = "\n\n💡 **Tip**: 비가 오면 실내가 평소보다 붐빌 수 있으니 조금 더 서둘러 가보세요! 🏃‍♂️"
+        rain_tip = "\n\n💡 **Tip**: 비가 오면 실내가 평소보다 붐빌 수 있으니 조금 더 서둘러 가 보세요! 🏃‍♂️"
     
     selected_prefix = random.choice(prefixes) if prefixes else ""
     
