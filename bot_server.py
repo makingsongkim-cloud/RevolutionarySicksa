@@ -257,6 +257,27 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
     for cuisine, keywords in CUISINE_KEYWORDS.items():
         if any(keyword in utterance_lower for keyword in keywords):
             cuisine_filters.append(cuisine)
+            
+    # [NEW] 음식 태그 추출 (국물, 면, 고기 등) -> search_filters로 활용
+    # CUISINE_KEYWORDS에 없는 '특징' 기반 키워드
+    tag_keywords_map = {
+        "soup": ["국물", "찌개", "탕", "전골", "국밥"],
+        "noodle": ["면", "국수", "우동", "라면", "짬뽕", "짜장", "파스타", "소바"],
+        "meat": ["고기", "육류", "돈까스", "스테이크", "갈비", "불고기", "제육"],
+        "rice": ["밥", "덮밥", "볶음밥", "비빔밥", "리조또"],
+        "spicy": ["매운", "빨간", "얼큰", "칼칼"],
+        "light": ["가벼운", "샐러드", "샌드위치", "다이어트"],
+        "heavy": ["든든", "푸짐", "해장"]
+    }
+    
+    tag_filters = []
+    for tag, keywords in tag_keywords_map.items():
+        if any(keyword in utterance_lower for keyword in keywords):
+            tag_filters.append(tag)
+            
+    # [NEW] 음식 키워드가 발견되면 무조건 추천 Intent로 고정
+    if (cuisine_filters or tag_filters) and intent != "reject":
+        intent = "recommend"
     
     # 날씨 추출
     weather = None
@@ -278,7 +299,9 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
         "emotion": emotion,
         "cuisine_filters": cuisine_filters,
         "weather": weather,
-        "mood": mood
+        "mood": mood,
+        "tag_filters": tag_filters # [NEW] 태그 필터 추가
+    }
     }
 
 
@@ -757,7 +780,11 @@ async def recommend_lunch(payload: SkillPayload):
     if "날씨" in utterance and len(utterance) < 10 and not any(k in utterance for k in ["추천", "메뉴", "점심", "밥"]):
         r = recommender.LunchRecommender()
         cond, temp = r.get_weather()
-        response_text = f"🌡️ 현재 날씨 정보\n\n상태: {cond}\n기온: {temp}\n\n날씨에 맞는 점심 추천해드릴까요? 😊"
+        
+        cond_display = cond if cond else "정보 없음"
+        temp_display = temp if temp else "정보 없음"
+        
+        response_text = f"🌡️ 현재 날씨 정보\n\n상태: {cond_display}\n기온: {temp_display}\n\n날씨에 맞는 점심 추천해드릴까요? 😊"
         
         session_manager.add_conversation(user_id, "user", utterance)
         session_manager.add_conversation(user_id, "bot", response_text)
@@ -920,15 +947,20 @@ async def recommend_lunch(payload: SkillPayload):
         last_rec = session_manager.get_last_recommendation(user_id)
         excluded_menus = []
         if last_rec and 'name' in last_rec:
-            excluded_menus.append(last_rec['name'])
+            history_menus.append(last_rec['name'])
         
         params = payload.action.params
         weather = params.get("weather") or intent_data.get("weather")
         mood = params.get("mood") or intent_data.get("mood")
-        cuisine_filters = intent_data.get("cuisine_filters") or None
+        # cuisine_filters = intent_data.get("cuisine_filters") or None # 기존 라인 제거
+        # [NEW] 태그 필터도 전달
+        tag_filters = intent_data.get('tag_filters', [])
+        
+        if intent_data.get("cuisine_filters") or tag_filters:
+            print(f"필터 적용: {intent_data.get('cuisine_filters')}, 태그: {tag_filters}")
         
         r = recommender.LunchRecommender()
-        choice = r.recommend(weather=weather, cuisine_filters=cuisine_filters, mood=mood, excluded_menus=excluded_menus)
+        choice = r.recommend(weather=actual_weather, cuisine_filters=intent_data.get("cuisine_filters"), mood=intent_data.get("mood"), excluded_menus=history_menus, tag_filters=tag_filters)
         
         # (이전 추천과 같으면 다시 시도 로직은 recommend 내부 excluded_menus로 해결됨)
         

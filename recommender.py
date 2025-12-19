@@ -140,7 +140,7 @@ class LunchRecommender:
         # 여기서는 이미 갱신된 lunch_data.MENUS를 다시 바인딩
         self.menus = lunch_data.MENUS
 
-    def recommend(self, weather=None, cuisine_filters=None, mood=None, excluded_menus=None):
+    def recommend(self, weather=None, cuisine_filters=None, mood=None, excluded_menus=None, **kwargs):
         """
         추천 로직:
         1. 최근 먹은 메뉴(2일 내) 제외
@@ -166,6 +166,17 @@ class LunchRecommender:
         # 2. 쿠진 필터링
         if cuisine_filters:
             candidates = [m for m in candidates if m.get('cuisine') in cuisine_filters]
+            
+        # 3. 태그 필터링 (NEW)
+        # tag_filters에 있는 '단어'가 메뉴의 tags에 하나라도 포함되면 유지
+        # (예: "국물" -> tags=["soup", ...] 인 메뉴만)
+        # 하지만 tag_filters는 한글일 수 있고, tags는 영어일 수 있음.
+        # 따라서 bot_server에서 mapping된 영어 태그를 넘겨주거나, 여기서 매핑해야 함.
+        # 일단은 recommender는 영문 태그를 받는다고 가정 (bot_server에서 매핑 책임)
+        if kwargs.get('tag_filters'): 
+            tf = kwargs.get('tag_filters')
+            # 교집합이 있으면 유지
+            candidates = [m for m in candidates if any(t in m.get('tags', []) for t in tf)]
 
         # 후보가 없으면 필터 완화 (제외 목록은 유지하되, 쿠진 필터만 해제 고민... 일단은 쿠진 필터 우선 해제)
         if not candidates:
