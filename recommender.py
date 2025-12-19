@@ -200,6 +200,13 @@ class LunchRecommender:
 
             # 날씨 반영
             if weather in ["비", "눈", "흐림"]:
+                # 1. 위치 점수 (실내 우대) - 비/눈 오면 밖으로 나가기 힘듦
+                if menu.get('area') in ["회사 지하식당", "회사 1층"]:
+                    score += 50
+                else:
+                    score -= 20
+
+                # 2. 메뉴 점수
                 # 국물 요리: 최우선 (+20점)
                 if TAG_SOUP in tags:
                     score += 20

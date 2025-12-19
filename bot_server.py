@@ -327,6 +327,12 @@ def generate_explanation_fallback(rec: Dict, weather: Optional[str] = None, mood
         reasons.append("비 오는 날 뜨끈한 국물로 몸 녹이기 좋아서")
     elif weather in ["비", "장마", "흐림"]:
         reasons.append("비 오는 날 든든하게 드시라고")
+        
+    # [NEW] 비 오는 날 전용 팁 (사람 붐빔 경고)
+    rain_tip = ""
+    if weather in ["비", "장마"]:
+        rain_tip = "\n\n💡 **Tip**: 비가 오니 실내가 평소보다 붐빌 것 같아요. 평소보다 조금 서둘러 가시는 걸 추천드려요! 🏃‍♂️"
+    
     elif weather in ["눈", "추위", "겨울", "한파"] and (has_soup or has_hot):
         reasons.append("추운 날 따뜻하게 드시라고")
     elif weather == "한파" and rec.get('area') in ["회사 지하식당", "회사 1층"]:
@@ -382,7 +388,7 @@ def generate_explanation_fallback(rec: Dict, weather: Optional[str] = None, mood
         ]
     
     reason = random.choice(reasons)
-    return f"{name_with_josa} {reason} 추천드렸어요! 위치도 {rec.get('area')}라서 가기 좋답니다. 😊"
+    return f"{name_with_josa} {reason} 추천드렸어요! 위치도 {rec.get('area')}라서 가기 좋답니다. 😊{rain_tip}"
 
 
 async def generate_casual_response_with_gemini(utterance: str, casual_type: str, conversation_history: List[Dict]) -> str:
@@ -610,9 +616,14 @@ def generate_response_message(choice: dict, intent_data: Dict) -> str:
             "매운 거나 맛있는 걸로 힐링해요! "
         ]
     
+    # 비 오는 날 전용 팁
+    rain_tip = ""
+    if weather == "비":
+        rain_tip = "\n\n💡 **Tip**: 비가 오면 실내가 평소보다 붐빌 수 있으니 조금 더 서둘러 가보세요! 🏃‍♂️"
+    
     selected_prefix = random.choice(prefixes) if prefixes else ""
     
-    return f"{emotion_prefix}{selected_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}"
+    return f"{emotion_prefix}{selected_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}{rain_tip}"
 
 
 @app.post("/api/lunch")
