@@ -3,7 +3,7 @@ chcp 65001
 cd /d "%~dp0"
 
 echo [INFO] 점심 추천 봇 서버(Kakao) 실행 준비 중...
-echo [INFO] 최신 코드를 받아옵니다 (Git Pull)...
+echo [INFO] 최신 코드를 받아옵니다...
 git pull
 echo.
 
@@ -56,7 +56,7 @@ echo.
 echo [INFO] 봇 서버를 실행합니다! (포트: 8000)
 echo [INFO] Ngrok 터널링 프로그램도 새 창에서 같이 실행합니다.
 
-start "Ngrok Tunnel" call run_ngrok.bat
+start "Ngrok Tunnel" run_ngrok.bat
 echo.
 
 
