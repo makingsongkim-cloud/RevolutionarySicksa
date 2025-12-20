@@ -25,6 +25,10 @@ load_dotenv()
 
 app = FastAPI()
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "DDMC Lunch Bot Server is running!"}
+
 # Gemini API 설정
 try:
     import google.generativeai as genai
