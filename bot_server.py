@@ -813,12 +813,23 @@ async def handle_recommendation_logic(
             print(
                 f"날씨 새로 가져옴: {current_weather_condition} {current_temp} → {actual_weather}"
             )
-        except Exception as e:
-            print(f"날씨 가져오기 실패: {e}, 캐시 사용 또는 스킵")
-            actual_weather = weather_cache.get("mapped_weather")  # 이전 캐시라도 사용
+    # 추가된 마스터모드 이스터 에그
+    if utterance == "마스터모드":
+        print("Easter Egg: Master Mode Activated")
+        return get_final_kakao_response("마스터 모드가 활성화되었습니다. (디버깅용)")
 
-    # 4. 의도 분석 (Smart Patch - Fallback First)
-    # [Smart Patch] LLM이 틀리더라도 '음식 키워드'가 발견되면 recommend로 강제 고정합니다.
+    t2 = time.time()
+    print(f"⏱️ 2. Easter eggs check: {t2 - t1:.4f}s")
+
+    # 4. 의도 분석 (Hybrid)
+    # 4.1 날씨/기분 가져오기 (캐시 또는 API)
+    # recommender.get_weather는 API 호출을 포함하므로 병목 가능성 있음
+    # 이 부분은 이미 위에서 처리되었으므로, 타이밍만 추가
+    tw1 = time.time() # 날씨 정보 획득 시작 시간 (캐시 또는 API)
+    # 실제 날씨 획득 로직은 위에 있음. 여기서는 타이밍만 기록
+    tw2 = time.time() # 날씨 정보 획득 완료 시간
+    print(f"⏱️ 3a. Weather fetch (cached or API): {tw2 - tw1:.4f}s")
+
 
     # 4.1 "날씨" 질문 단독 처리 (Gemini 불필요)
     if (
