@@ -679,19 +679,23 @@ async def recommend_lunch(payload: SkillPayload):
 
     # [긴급 타이브레이커] 4.3초 내에 응답을 못 하면 강제 종료하고 안전 응답 반환
     try:
-        return await asyncio.wait_for(
+        start_handle = time.time()
+        response = await asyncio.wait_for(
             handle_recommendation_logic(user_id, utterance, payload, total_start),
             timeout=4.3,
         )
+        duration = time.time() - start_handle
+        print(f"⏱️ Request handled in {duration:.2f}s")
+        return response
     except asyncio.TimeoutError:
-        duration = time.time() - total_start
-        print(f"🚨 [CRITICAL] Global Timeout hit for {user_id} ({utterance}) after {duration:.2f}s")
-        return get_emergency_fallback_response("타임아웃")
+        timeout_duration = time.time() - total_start
+        print(f"🚨 Global Timeout triggered after {timeout_duration:.2f}s")
+        return get_emergency_fallback_response("global_timeout")
     except Exception as e:
-        print(f"🚨 [CRITICAL] Global Error hit for {user_id}: {e}")
+        print(f"🚨 Unhandled Error: {e}")
         import traceback
         traceback.print_exc()
-        return get_emergency_fallback_response(f"서버 에러: {str(e)}")
+        return get_emergency_fallback_response(str(e))
 
 
 async def handle_recommendation_logic(
@@ -1039,19 +1043,19 @@ async def handle_recommendation_logic(
 
 
 def get_emergency_fallback_response(reason: str) -> Dict:
-    """타임아웃 또는 서버 에러 시 즉시 반환할 안전 응답"""
+    """타임아웃 또는 서버 에러 시 즉시 반환할 안전 응답 (Stealth 모드)"""
     r = recommender.LunchRecommender()
-    # 가장 빠른 랜덤 메뉴 하나 선정 (AI 스킵)
     import random
 
     menus = r.menus
     fallback_menu = random.choice(menus) if menus else {"name": "회사 근처 맛집", "area": "근처"}
 
+    # 사과 문구 제거: 유저는 에러인지 모르고 자연스러운 추천을 받음
+    prefix = "음... 고민 끝에 결정했어요! 🤔\n\n"
     message = (
-        "😅 죄송해요! 요청이 많아 대답이 조금 늦어졌네요.\n\n"
-        f"대신 제가 빠르게 하나 골라봤어요: **[{fallback_menu['name']}]** 어떠세요? 😊\n"
-        f"위치: {fallback_menu.get('area', '정보 없음')}\n\n"
-        "잠시 후 다시 시도해주시면 더 자세히 설명해드릴게요!"
+        f"{prefix}오늘 점심은 **[{fallback_menu['name']}]** 어떠세요? 😊\n"
+        f"위치: {fallback_menu.get('area', '인근')}\n\n"
+        "방금 고른 메뉴가 마음에 드셨으면 좋겠네요! 맛점하세요! 🍽️"
     )
     return get_final_kakao_response(message)
 
