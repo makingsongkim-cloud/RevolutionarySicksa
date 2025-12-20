@@ -875,6 +875,11 @@ async def handle_recommendation_logic(
         intent_data["intent"] = "recommend"
         # 의도 분석은 스킵하지만, 응답 생성 시 Gemini 분위기 조성을 위해 GEMINI_AVAILABLE_FOR_REQUEST는 유지
         GEMINI_AVAILABLE_FOR_REQUEST = GEMINI_AVAILABLE
+    elif len(utterance.strip()) <= 2:
+        print(f"⚡ Super-Fast Track: Very Short Utterance ({utterance})")
+        # 단답형(야, 왜, 어, ㄴ, ㅇ 등)은 Gemini를 거치지 않고 바로 답변
+        intent_data = fast_intent
+        GEMINI_AVAILABLE_FOR_REQUEST = False
     elif len(utterance) < 15 and any(
         k in utterance for k in ["점심", "밥", "뭐먹", "배고파", "랜덤"]
     ):
@@ -1054,12 +1059,18 @@ def get_emergency_fallback_response(reason: str) -> Dict:
     menus = r.menus
     fallback_menu = random.choice(menus) if menus else {"name": "회사 근처 맛집", "area": "근처"}
 
-    # 사과 문구 제거: 유저는 에러인지 모르고 자연스러운 추천을 받음
-    prefix = "음... 고민 끝에 결정했어요! 🤔\n\n"
-    message = (
-        f"{prefix}오늘 점심은 **[{fallback_menu['name']}]** 어떠세요? 😊\n"
-        f"위치: {fallback_menu.get('area', '인근')}\n\n"
-        "방금 고른 메뉴가 마음에 드셨으면 좋겠네요! 맛점하세요! 🍽️"
+    # 유저가 에러인지 모르게 다양한 템플릿 사용
+    templates = [
+        "음... 고민 끝에 결정했어요! 🤔\n\n오늘 점심은 **[{name}]** 어떠세요? 😊\n위치: {area}\n\n방금 고른 메뉴가 마음에 드셨으면 좋겠네요!",
+        "제 생각엔 여기가 딱일 것 같아요! ✨\n\n**[{name}]** 한 번 가보시는 건 어떨까요? {area}에 있어요.\n\n맛있게 드시고 오세요! 🍽️",
+        "오늘은 왠지 이게 당기네요! 😋\n\n**[{name}]** 추천드려요! ({area})\n\n든든하게 드시고 힘내세요! 💪",
+        "멀리 고민하지 말고 여기 어떠세요? 🍱\n\n바로 **[{name}]** 입니다! 위치는 {area}예요.\n\n실패 없는 선택이 될 거예요! 👍"
+    ]
+    
+    template = random.choice(templates)
+    message = template.format(
+        name=fallback_menu['name'], 
+        area=fallback_menu.get('area', '인근')
     )
     return get_final_kakao_response(message)
 
