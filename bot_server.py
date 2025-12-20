@@ -705,11 +705,31 @@ async def recommend_lunch(payload: SkillPayload):
 async def handle_recommendation_logic(
     user_id: str, utterance: str, payload: SkillPayload, start_time: float
 ):
-    """실제 추천 로직 (별도 함수로 분리하여 타임아웃 관리)"""
+    """메인 추천 로직 핸들러 (입력 분석 -> 필터링 -> 선택 -> 응답 생성)"""
+    total_start = start_time
+    
+    # [ULTRA FAST TRACK] 0. 로컬 의도 분석 최우선 실행
+    # 날씨, 세션, 레이트 리밋 등 무거운 작업 전에 먼저 판단합니다.
+    fast_intent = analyze_intent_fallback(utterance)
+    is_help_request = fast_intent.get("intent") == "help"
+    is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
+    is_short_casual = len(utterance.strip()) <= 2
+    
+    # 0.1 웰컴/도움말/단답형 즉시 반환 (0.01초 내 응답 목표)
+    if is_welcome_event:
+        print("⚡ Ultra Fast Track: Welcome Event")
+        return await generate_casual_response_fallback(user_id, "greeting", utterance)
+    elif is_help_request:
+        print("⚡ Ultra Fast Track: Help Request")
+        return get_help_response()
+    elif is_short_casual:
+        print(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
+        return await generate_casual_response_fallback(user_id, "chitchat", utterance)
 
-    # =================================================================
-    # 🕵️‍♂️ 이이스터에그 (Easter Egg)
-    # =================================================================
+    # 1. 태아웃 방지용 기록 및 이스터에그
+    print(f"\n[Request Processing] '{utterance}'")
+    
+    # 이스터에그
     easter_egg_keywords = [
         "김형석",
         "만든사람",
@@ -1070,9 +1090,9 @@ def get_emergency_fallback_response(reason: str) -> Dict:
     menus = r.menus
     fallback_menu = random.choice(menus) if menus else {"name": "회사 근처 맛집", "area": "근처"}
 
-    # 유저가 에러인지 모르게 다양한 템플릿 사용
+    # 유저가 에러인지 모르게 다양한 템플릿 사용 (첫 번째 문구 더 자연스럽게 수정)
     templates = [
-        "음... 고민 끝에 결정했어요! 🤔\n\n오늘 점심은 **[{name}]** 어떠세요? 😊\n위치: {area}\n\n방금 고른 메뉴가 마음에 드셨으면 좋겠네요!",
+        "음... 고민 끝에 여기로 결정했어요! ✨\n\n오늘 점심은 **[{name}]** 어떠세요? 😊\n위치: {area}\n\n좋은 선택이 될 거예요!",
         "제 생각엔 여기가 딱일 것 같아요! ✨\n\n**[{name}]** 한 번 가보시는 건 어떨까요? {area}에 있어요.\n\n맛있게 드시고 오세요! 🍽️",
         "오늘은 왠지 이게 당기네요! 😋\n\n**[{name}]** 추천드려요! ({area})\n\n든든하게 드시고 힘내세요! 💪",
         "멀리 고민하지 말고 여기 어떠세요? 🍱\n\n바로 **[{name}]** 입니다! 위치는 {area}예요.\n\n실패 없는 선택이 될 거예요! 👍"
