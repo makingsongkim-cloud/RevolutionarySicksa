@@ -1106,6 +1106,13 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
         name=fallback_menu['name'], 
         area=fallback_menu.get('area', '인근')
     )
+    
+    # [중요] 비상 응답에서도 추천한 메뉴를 히스토리에 저장하여 다음번에 중복되지 않게 함
+    try:
+        r.history_mgr.save_history(user_id, fallback_menu['name'])
+    except:
+        pass
+        
     return get_final_kakao_response(message)
 
 
