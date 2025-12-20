@@ -833,6 +833,9 @@ async def handle_recommendation_logic(
             print(
                 f"날씨 새로 가져옴: {current_weather_condition} {current_temp} → {actual_weather}"
             )
+        except Exception as e:
+            print(f"날씨 가져오기 실패/타임아웃: {e}, 캐시 사용 권장")
+            actual_weather = weather_cache.get("mapped_weather")
     # 추가된 마스터모드 이스터 에그
     if utterance == "마스터모드":
         print("Easter Egg: Master Mode Activated")
