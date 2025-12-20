@@ -1128,6 +1128,7 @@ def build_varied_recommendation(choice: Dict, intent_data: Dict) -> str:
 def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: str = "Master", weather: str = None) -> Dict:
     """타임아웃 또는 서버 에러 시 즉시 반환할 안전 응답 (글로벌 r 활용하여 초고속 생성)"""
     import random
+    intent_data = {} # [FIX] UnboundLocalError 방지
 
     try:
         r.refresh_data()
