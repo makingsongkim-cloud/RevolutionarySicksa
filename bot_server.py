@@ -101,6 +101,9 @@ MOOD_KEYWORDS = {
     "다이어트": ["다이어트", "살빼", "가벼운", "샐러드", "관리", "식단"]
 }
 
+# [공용 객체] 서버 시작 시 한 번만 생성하여 I/O 부하 감소
+r = recommender.LunchRecommender()
+
 # Input Models for Kakao Skill Payload
 class Action(BaseModel):
     params: Dict[str, Any] = {}
@@ -424,10 +427,10 @@ async def generate_casual_response_with_gemini(utterance: str, casual_type: str,
     )
     if response_text:
         return response_text
-    return generate_casual_response_fallback(casual_type)
+    return generate_casual_response_fallback(casual_type, user_id)
 
 
-def generate_casual_response_fallback(casual_type: str) -> str:
+def generate_casual_response_fallback(casual_type: str, user_id: str = "Master") -> str:
     """
     일상 대화 기본 응답 (Fallback)
     """
@@ -694,12 +697,14 @@ async def recommend_lunch(payload: SkillPayload):
     except asyncio.TimeoutError:
         timeout_duration = time.time() - total_start
         print(f"🚨 Global Timeout triggered after {timeout_duration:.2f}s")
-        return get_emergency_fallback_response("global_timeout")
+        # 현재까지 수집된 날씨/기분 정보를 바탕으로 '최선의 로컬 응답' 생성
+        weather = weather_cache.get("mapped_weather")
+        return get_emergency_fallback_response("global_timeout", utterance=utterance, user_id=user_id, weather=weather)
     except Exception as e:
         print(f"🚨 Unhandled Error: {e}")
         import traceback
         traceback.print_exc()
-        return get_emergency_fallback_response(str(e))
+        return get_emergency_fallback_response(str(e), utterance=utterance, user_id=user_id)
 
 
 async def handle_recommendation_logic(
@@ -718,13 +723,14 @@ async def handle_recommendation_logic(
     # 0.1 웰컴/도움말/단답형 즉시 반환 (0.01초 내 응답 목표)
     if is_welcome_event:
         print("⚡ Ultra Fast Track: Welcome Event")
-        return await generate_casual_response_fallback(user_id, "greeting", utterance)
+        # generate_casual_response_fallback는 동기 함수이므로 await 제거
+        return generate_casual_response_fallback("greeting", user_id)
     elif is_help_request:
         print("⚡ Ultra Fast Track: Help Request")
         return get_help_response()
     elif is_short_casual:
         print(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
-        return await generate_casual_response_fallback(user_id, "chitchat", utterance)
+        return generate_casual_response_fallback("chitchat", user_id)
 
     # 1. 태아웃 방지용 기록 및 이스터에그
     print(f"\n[Request Processing] '{utterance}'")
@@ -763,95 +769,76 @@ async def handle_recommendation_logic(
             "template": {"outputs": [{"simpleText": {"text": f"⚠️ {deny_reason}"}}]},
         }
 
-    # 3. 세션 및 날씨 정보
+    # 3. 세션 및 날씨 정보 (병렬 시작)
     session = session_manager.get_session(user_id)
     conversation_history = session_manager.get_conversation_history(user_id)
 
-    actual_weather = None
-    now = datetime.now()
-    if weather_cache["last_updated"] and (
-        now - weather_cache["last_updated"]
-    ) < timedelta(minutes=10):
-        actual_weather = weather_cache["mapped_weather"]
-        print(
-            f"날씨 캐시 사용: {weather_cache['condition']} {weather_cache['temp']} → {actual_weather}"
-        )
-    else:
+    # [병렬화] 날씨 정보를 미리 가져오기 시작 (메인 로직과 겹치지 않게 비동기 처리)
+    async def get_weather_task():
+        now = datetime.now()
+        if weather_cache["last_updated"] and (now - weather_cache["last_updated"]) < timedelta(minutes=10):
+             return weather_cache["mapped_weather"]
         try:
-            # 날씨 정보 획득 시 타임아웃 1.2초로 제한하여 전체 흐름 보호
-            r_w = recommender.LunchRecommender()
-            weather_task = asyncio.to_thread(r_w.get_weather)
-            current_weather_condition, current_temp = await asyncio.wait_for(
-                weather_task, timeout=1.2
-            )
-
-            # (날씨 매핑 로직...)
-            weather_mapping = {
-                "비": "비",
-                "rain": "비",
-                "rainy": "비",
-                "눈": "눈",
-                "snow": "눈",
-                "snowy": "눈",
-                "맑음": "맑음",
-                "clear": "맑음",
-                "cloudy": "흐림",
-                "구름": "흐림",
-            }
-
-            # 온도로 추위/더위 판단
-            if current_weather_condition:
-                weather_lower = current_weather_condition.lower()
-                for key, value in weather_mapping.items():
-                    if key in weather_lower:
-                        actual_weather = value
-                        break
-
-            # 온도 기반 판단 (날씨 상태가 없으면)
-            if not actual_weather and current_temp:
-                try:
-                    temp_value = float(
-                        current_temp.replace("°C", "").replace("℃", "").strip()
-                    )
-                    if temp_value < 0:
-                        actual_weather = "한파"
-                    elif temp_value < 10:
-                        actual_weather = "추위"
-                    elif temp_value > 28:
-                        actual_weather = "더위"
-                except:
-                    pass
-
-            weather_cache.update(
-                {
-                    "condition": current_weather_condition,
-                    "temp": current_temp,
-                    "mapped_weather": actual_weather,
-                    "last_updated": now,
+            # 글로벌 객체 r을 활용하거나 별도 처리 (여기서는 독립적으로 날씨만 가져옴)
+            # r.get_weather는 내부적으로 requests를 사용하므로 thread에서 별도로 수행
+            cond, temp = await asyncio.wait_for(asyncio.to_thread(r.get_weather), timeout=1.1)
+            
+            actual_weather = None
+            if cond:
+                weather_mapping = {
+                    "비": "비", "rain": "비", "rainy": "비",
+                    "눈": "눈", "snow": "눈", "snowy": "눈",
+                    "맑음": "맑음", "clear": "맑음", "sunny": "맑음",
+                    "흐림": "흐림", "cloudy": "흐림", "overcast": "흐림"
                 }
-            )
-            print(
-                f"날씨 새로 가져옴: {current_weather_condition} {current_temp} → {actual_weather}"
-            )
-        except Exception as e:
-            print(f"날씨 가져오기 실패/타임아웃: {e}, 캐시 사용 권장")
-            actual_weather = weather_cache.get("mapped_weather")
+                c_lower = cond.lower()
+                for k, v in weather_mapping.items():
+                    if k in c_lower:
+                        actual_weather = v
+                        break
+            
+            if not actual_weather and temp:
+                try:
+                    t_val = float(temp.replace("°C", "").replace("℃", "").strip())
+                    if t_val < 0: actual_weather = "한파"
+                    elif t_val < 10: actual_weather = "추위"
+                    elif t_val > 28: actual_weather = "더위"
+                except: pass
+            
+            weather_cache.update({
+                "condition": cond, "temp": temp, 
+                "mapped_weather": actual_weather, "last_updated": now
+            })
+            return actual_weather
+        except:
+            return None
+
+    weather_future = asyncio.create_task(get_weather_task())
+    
+    # 4. 의도 분석 (Hybrid)
+    # (이미 위에서 초반 0. 로컬 분석이 수행되었으므로, 필요한 데이터만 정리)
+    # ...
+    # [병렬화 결과 획득]
+    try:
+        # 이미 획득했거나 아주 짧은 대기 (0.1초)
+        await asyncio.wait_for(asyncio.shield(weather_future), timeout=0.1)
+        actual_weather = weather_cache.get("mapped_weather")
+    except:
+        actual_weather = weather_cache.get("mapped_weather")
     # 추가된 마스터모드 이스터 에그
     if utterance == "마스터모드":
         print("Easter Egg: Master Mode Activated")
         return get_final_kakao_response("마스터 모드가 활성화되었습니다. (디버깅용)")
 
-    t2 = time.time()
-    print(f"⏱️ 2. Easter eggs check: {t2 - t1:.4f}s")
+    # [병렬화 결과 획득]
+    try:
+        # 이미 획득했거나 타임아웃 0.2초 내에 확보 시도
+        res_weather = await asyncio.wait_for(asyncio.shield(weather_future), timeout=0.2)
+        actual_weather = weather_cache.get("mapped_weather") # 캐시 업데이트된 값 사용
+    except:
+        actual_weather = weather_cache.get("mapped_weather") # 실패 시 기존 캐시
 
-    # 4. 의도 분석 (Hybrid)
-    # 4.1 날씨/기분 가져오기 (캐시 또는 API)
-    # recommender.get_weather는 API 호출을 포함하므로 병목 가능성 있음
-    # 이 부분은 이미 위에서 처리되었으므로, 타이밍만 추가
-    tw1 = time.time() # 날씨 정보 획득 시작 시간 (캐시 또는 API)
-    # 실제 날씨 획득 로직은 위에 있음. 여기서는 타이밍만 기록
-    tw2 = time.time() # 날씨 정보 획득 완료 시간
-    print(f"⏱️ 3a. Weather fetch (cached or API): {tw2 - tw1:.4f}s")
+    # 4. 의도 분석 (Smart Patch - Fallback First)
 
 
     # 4.1 "날씨" 질문 단독 처리 (Gemini 불필요)
@@ -860,8 +847,7 @@ async def handle_recommendation_logic(
         and len(utterance) < 10
         and not any(k in utterance for k in ["추천", "메뉴", "점심", "밥"])
     ):
-        r = recommender.LunchRecommender()
-        cond, temp = r.get_weather()
+        cond, temp = r.get_weather() # Use global r
 
         cond_display = cond if cond else "정보 없음"
         temp_display = temp if temp else "정보 없음"
@@ -951,7 +937,7 @@ async def handle_recommendation_logic(
                 utterance, casual_type, conversation_history
             )
         else:
-            casual_response = generate_casual_response_fallback(casual_type)
+            casual_response = generate_casual_response_fallback(casual_type, user_id)
 
         is_question = any(utterance.strip().endswith(m) for m in ["?", "냐", "까", "니", "요", "죠"])
         has_strong_keyword = any(
@@ -966,8 +952,7 @@ async def handle_recommendation_logic(
         )
 
         if should_recommend:
-            r = recommender.LunchRecommender()
-            choice = r.recommend(
+            choice = r.recommend( # Use global r
                 weather=actual_weather, mood=intent_data.get("mood")
             )
             if choice:
@@ -1009,8 +994,7 @@ async def handle_recommendation_logic(
     elif intent == "reject":
         last_rec = session_manager.get_last_recommendation(user_id)
         excluded = [last_rec["name"]] if last_rec and "name" in last_rec else []
-        r = recommender.LunchRecommender()
-        choice = r.recommend(
+        choice = r.recommend( # Use global r
             weather=actual_weather,
             cuisine_filters=intent_data.get("cuisine_filters"),
             mood=intent_data.get("mood"),
@@ -1043,9 +1027,8 @@ async def handle_recommendation_logic(
         session_manager.add_conversation(user_id, "bot", response_text)
 
     else:  # recommend
-        r = recommender.LunchRecommender()
         weather = actual_weather or intent_data.get("weather")
-        choice = r.recommend(
+        choice = r.recommend( # Use global r
             weather=weather,
             cuisine_filters=intent_data.get("cuisine_filters"),
             mood=intent_data.get("mood"),
@@ -1085,15 +1068,32 @@ async def handle_recommendation_logic(
     return get_final_kakao_response(final_text)
 
 
-def get_emergency_fallback_response(reason: str) -> Dict:
-    """타임아웃 또는 서버 에러 시 즉시 반환할 안전 응답 (Stealth 모드)"""
-    r = recommender.LunchRecommender()
+def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: str = "Master", weather: str = None) -> Dict:
+    """타임아웃 또는 서버 에러 시 즉시 반환할 안전 응답 (글로벌 r 활용하여 초고속 생성)"""
     import random
 
-    menus = r.menus
-    fallback_menu = random.choice(menus) if menus else {"name": "회사 근처 맛집", "area": "근처"}
+    try:
+        # 데이터가 꼬였을 수 있으니 간단히 리프레시 (메모리상)
+        r.refresh_data()
+        
+        # 의도 분석 다시 가볍게 수행
+        intent_data = analyze_intent_fallback(utterance)
+        if weather: intent_data["weather"] = weather
+        
+        # [핵심] 최근 먹은 메뉴 제외 로직이 포함된 r.recommend 호출 (I/O 이미 최적화됨)
+        fallback_menu = r.recommend(
+            weather=intent_data.get("weather"),
+            cuisine_filters=intent_data.get("cuisine_filters"),
+            mood=intent_data.get("mood"),
+            tag_filters=intent_data.get("tag_filters")
+        )
+    except:
+        fallback_menu = None
 
-    # 유저가 에러인지 모르게 다양한 템플릿 사용 (첫 번째 문구 더 자연스럽게 수정)
+    if not fallback_menu:
+        fallback_menu = random.choice(r.menus) if r.menus else {"name": "회사 근처 맛집", "area": "근처"}
+
+    # 유저가 에러인지 모르게 다양한 템플릿 사용
     templates = [
         "음... 고민 끝에 여기로 결정했어요! ✨\n\n오늘 점심은 **[{name}]** 어떠세요? 😊\n위치: {area}\n\n좋은 선택이 될 거예요!",
         "제 생각엔 여기가 딱일 것 같아요! ✨\n\n**[{name}]** 한 번 가보시는 건 어떨까요? {area}에 있어요.\n\n맛있게 드시고 오세요! 🍽️",
