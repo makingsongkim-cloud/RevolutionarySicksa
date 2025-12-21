@@ -1138,8 +1138,8 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
                     
                     final_text = f"{random.choice(prefixes)}{explanation}"
                     
-                    # [DEFENSIVE] 2001 에러 방지 (길이/내용 체크)
-                    if not final_text or len(final_text) > 900:
+                    # [DEFENSIVE] 2001 에러 방지 (길이/내용 체크) - 카카오 제한 준수
+                    if not final_text or len(final_text) > 400:
                         print(f"⚠️ Text too long or empty ({len(final_text)}): {final_text[:50]}...")
                         final_text = f"'{last_rec.get('name')}' 가보시면 절대 후회 안 하실 거예요! 믿고 드셔보세요. 👍"
                         
