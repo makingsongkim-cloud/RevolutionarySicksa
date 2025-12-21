@@ -286,10 +286,6 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
         if any(keyword in utterance_lower for keyword in keywords):
             tag_filters.append(tag)
             
-    # [NEW] 음식 키워드나 기분 키워드가 발견되면 무조건 추천 Intent로 고정
-    if (cuisine_filters or tag_filters or mood) and intent == "casual":
-        intent = "recommend"
-    
     # 날씨 추출
     weather = None
     for weather_type, keywords in WEATHER_KEYWORDS.items():
@@ -687,13 +683,17 @@ async def handle_recommendation_logic(
     if is_welcome_event:
         print("⚡ Ultra Fast Track: Welcome Event")
         # generate_casual_response_fallback는 동기 함수이므로 await 제거
-        return generate_casual_response_fallback("greeting", user_id)
+        return get_final_kakao_response(
+            generate_casual_response_fallback("greeting", user_id)
+        )
     elif is_help_request:
         print("⚡ Ultra Fast Track: Help Request")
         return get_help_response()
     elif is_short_casual:
         print(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
-        return generate_casual_response_fallback("chitchat", user_id)
+        return get_final_kakao_response(
+            generate_casual_response_fallback("chitchat", user_id)
+        )
 
     # 1. 태아웃 방지용 기록 및 이스터에그
     print(f"\n[Request Processing] '{utterance}'")
@@ -744,7 +744,8 @@ async def handle_recommendation_logic(
         try:
             # 글로벌 객체 r을 활용하거나 별도 처리 (여기서는 독립적으로 날씨만 가져옴)
             # r.get_weather는 내부적으로 requests를 사용하므로 thread에서 별도로 수행
-            cond, temp = await asyncio.wait_for(asyncio.to_thread(r.get_weather), timeout=1.1)
+            # 여기서 타임아웃을 너무 짧게 잡으면 항상 실패하므로 내부 requests timeout에 맡깁니다.
+            cond, temp = await asyncio.to_thread(r.get_weather)
             
             actual_weather = None
             if cond:
@@ -752,7 +753,8 @@ async def handle_recommendation_logic(
                     "비": "비", "rain": "비", "rainy": "비",
                     "눈": "눈", "snow": "눈", "snowy": "눈",
                     "맑음": "맑음", "clear": "맑음", "sunny": "맑음",
-                    "흐림": "흐림", "cloudy": "흐림", "overcast": "흐림"
+                    "흐림": "흐림", "cloudy": "흐림", "overcast": "흐림",
+                    "더움": "더위", "hot": "더위"
                 }
                 c_lower = cond.lower()
                 for k, v in weather_mapping.items():
@@ -985,7 +987,13 @@ async def handle_recommendation_logic(
         if last_rec:
             # Gemini가 가능하면 Gemini로, 아니면 로컬 설명 생성
             if GEMINI_AVAILABLE_FOR_REQUEST:
-                response_text = await generate_explanation_with_gemini(last_rec, conversation_history, intent_data)
+                response_text = await generate_explanation_with_gemini(
+                    utterance,
+                    last_rec,
+                    conversation_history,
+                    weather=actual_weather,
+                    mood=intent_data.get("mood"),
+                )
             else:
                 response_text = generate_explanation_fallback(last_rec, weather=actual_weather, mood=intent_data.get("mood"))
         else:
