@@ -944,21 +944,6 @@ async def handle_recommendation_logic(
             session_manager.add_conversation(user_id, "user", utterance)
         session_manager.add_conversation(user_id, "bot", response_text)
 
-    elif intent == "explain":
-        last_rec = session_manager.get_last_recommendation(user_id)
-        if last_rec:
-            weather = actual_weather or intent_data.get("weather")
-            response_text = (
-                await generate_explanation_with_gemini(
-                    utterance, last_rec, conversation_history, weather, intent_data.get("mood")
-                )
-                if GEMINI_AVAILABLE_FOR_REQUEST
-                else generate_explanation_fallback(last_rec, weather, intent_data.get("mood"))
-            )
-        else:
-            response_text = "아직 추천드린 메뉴가 없어요. 점심 추천해드릴까요? 😊"
-        session_manager.add_conversation(user_id, "user", utterance)
-        session_manager.add_conversation(user_id, "bot", response_text)
 
     elif intent == "reject":
         last_rec = session_manager.get_last_recommendation(user_id)
