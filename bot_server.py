@@ -319,93 +319,55 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
 
 def generate_explanation_fallback(rec: Dict, weather: Optional[str] = None, mood: Optional[str] = None) -> str:
     """
-    추천 이유 설명 기본 응답 (Context-Aware Fallback)
+    메뉴 추천 이유를 로컬에서 생성 (Fallback)
+    - 단순 템플릿 조합이지만, 태그/날씨/기분을 반영하여 그럴싸하게 만듦
     """
-    name_with_josa = get_josa(rec['name'], "은/는")
+    name = rec.get('name', '이 메뉴')
+    category = rec.get('category', '음식')
+    tags = rec.get('tags', [])
     
+    # 1. 태그 기반 논리
+    reason_logic = f"**{category}** 메뉴로 유명한 곳이에요."
+    
+    if "spicy" in tags:
+        reason_logic = "스트레스 확 풀리는 매콤한 맛이 일품이거든요! 🔥"
+    elif "soup" in tags:
+        if weather and weather in ["비", "눈", "흐림", "추위", "장마"]:
+            reason_logic = "오늘처럼 쌀쌀한 날씨엔 이런 뜨끈한 국물이 최고잖아요. 🍲"
+        else:
+            reason_logic = "속이 확 풀리는 국물 맛이 끝내주거든요."
+    elif "meat" in tags:
+        if mood == "우울" or mood == "화남":
+            reason_logic = "기분이 저기압일 땐 역시 고기 앞으로 가야죠! 🍖"
+        else:
+            reason_logic = "든든하게 배 채우기엔 고기가 딱이니까요."
+    elif "light" in tags:
+        if mood == "다이어트":
+             reason_logic = "가볍게 관리하기 딱 좋은 메뉴라 골랐어요. 🥗"
+        else:
+             reason_logic = "더부룩하지 않고 깔끔하게 즐길 수 있는 메뉴예요. 🥗"
+    elif "noodle" in tags:
+        reason_logic = "후루룩 면치기 하기 딱 좋은 날이니까요! 🍜"
+
+    # 2. 날씨/기분 추가 멘트
+    extra = ""
+    if weather == "비":
+        extra = "\n\n(참고: 비가 와서 평소보다 붐빌 수 있어요! ☔)"
+    
+    # 3. 마무리 (다양성)
     import random
+    closers = [
+        "분명 만족스러운 식사가 되실 거예요! 😊",
+        "한 번 드셔보시면 제 마음을 아실 거예요!",
+        "마스터님 입맛에도 딱 맞을 거라고 확신해요. ✨",
+        "후회 없으실 선택이 될 거예요. 👍",
+        "제가 강력 추천하는 이유랍니다! 👏"
+    ]
     
-    tags = rec.get("tags", [])
-    has_soup = "soup" in tags
-    has_spicy = "spicy" in tags
-    has_meat = "meat" in tags
-    has_rice = "rice" in tags
-    has_light = "light" in tags
-    has_noodle = "noodle" in tags
-    has_hot = "hot" in tags
-    
-    reasons = []
-    
-    # 1) 날씨 기반
-    if weather in ["비", "장마", "흐림"] and has_soup:
-        reasons.append("비 오는 날 뜨끈한 국물로 몸 녹이기 좋아서")
-    elif weather in ["비", "장마", "흐림"]:
-        reasons.append("비 오는 날 든든하게 드시라고")
-        
-    # [NEW] 비 오는 날 전용 팁 (사람 붐빔 경고)
-    rain_tip = ""
-    if weather in ["비", "장마"]:
-        rain_tip = "\n\n💡 **Tip**: 비가 오니 실내가 평소보다 붐빌 것 같아요. 평소보다 조금 서둘러 가시는 걸 추천드려요! 🏃‍♂️"
-    
-    elif weather in ["눈", "추위", "겨울", "한파"] and (has_soup or has_hot):
-        reasons.append("추운 날 따뜻하게 드시라고")
-    elif weather == "한파" and rec.get('area') in ["회사 지하식당", "회사 1층"]:
-        reasons.append("날씨가 영하니까 나가지 말고 안에서 드시라고")
-    elif weather in ["더위", "여름"] and has_light:
-        reasons.append("더운 날 부담 없이 시원하게 드시라고")
-    elif weather in ["더위", "여름"] and has_noodle:
-        reasons.append("더운 날 면 한 그릇으로 시원하게 하시라고")
-    
-    # 2) 기분 기반
-    if mood in ["화남", "스트레스"]:
-        if has_spicy:
-            reasons.append("매운 거로 스트레스 한 번 확 풀라고")
-        else:
-            reasons.append("스트레스엔 든든한 한 끼가 최고라서")
-    elif mood in ["우울", "슬픔"]:
-        if has_soup or has_rice or has_meat:
-            reasons.append("기분 전환에 도움 되게 든든한 걸로 골랐어요")
-        else:
-            reasons.append("우울할 땐 맛있는 게 약이라서")
-    elif mood in ["피곤"]:
-        if has_rice and has_meat:
-            reasons.append("고기+밥 조합으로 에너지 채우시라고")
-        else:
-            reasons.append("지친 몸에 힘 나는 메뉴라서")
-    elif mood == "행복":
-        if has_meat:
-            reasons.append("기분 좋은 날엔 맛있는 고기가 딱이라서")
-    elif mood == "다이어트":
-        if has_light:
-            reasons.append("가볍게 관리하기 좋은 메뉴라서")
-    elif mood == "플렉스":
-        reasons.append("오늘은 제대로 flex 하시라고")
-    
-    # 3) 메뉴 특징 기반
-    if not reasons:
-        if has_soup:
-            reasons.append("국물까지 시원/깔끔해서")
-        if has_spicy and len(reasons) < 2:
-            reasons.append("매콤하게 입맛 살리기 좋아서")
-        if has_meat and len(reasons) < 2:
-            reasons.append("고기가 푸짐해 든든해서")
-        if has_light and len(reasons) < 2:
-            reasons.append("가볍게 한 끼 하기 좋아서")
-    
-    # 4) 기본
-    if not reasons:
-        reasons = [
-            "정말 맛있는 곳이라",
-            "요즘 인기 있는 메뉴라",
-            "실패 없는 선택이라",
-            "많은 분들이 좋아하는 곳이라"
-        ]
-    
-    reason = random.choice(reasons)
-    return f"{name_with_josa} {reason} 추천드렸어요! 위치도 {rec.get('area')}라서 가기 좋답니다. 😊{rain_tip}"
+    return f"'{name}'(을)를 추천한 이유요?\n\n{reason_logic}{extra}\n\n{random.choice(closers)}"
 
 
-async def generate_casual_response_with_gemini(utterance: str, casual_type: str, conversation_history: List[Dict]) -> str:
+async def generate_casual_response_with_gemini(utterance: str, casual_type: str, conversation_history: List[Dict], user_id: str = "Master") -> str:
     """일상 대화 응답 (Short Prompt)"""
     history_text = format_history(conversation_history)
     
@@ -899,7 +861,13 @@ async def handle_recommendation_logic(
         print(f"⚡ Super-Fast Track: Very Short Utterance ({utterance})")
         # 단답형(야, 왜, 어, ㄴ, ㅇ 등)은 Gemini를 거치지 않고 바로 답변
         intent_data = fast_intent
-        GEMINI_AVAILABLE_FOR_REQUEST = False
+        
+        # [FIX] '왜' 같은 질문이 들어왔을 때 intent가 'explain'이면 그대로 유지
+        if intent_data.get("intent") == "explain":
+            print("  -> Intent is EXPLAIN (Preserving)")
+            GEMINI_AVAILABLE_FOR_REQUEST = False # 로컬 설명 생성기로 연결
+        else:
+            GEMINI_AVAILABLE_FOR_REQUEST = False
     elif len(utterance) < 15 and any(
         k in utterance for k in ["점심", "밥", "뭐먹", "배고파", "랜덤"]
     ):
@@ -934,7 +902,7 @@ async def handle_recommendation_logic(
     if intent == "casual":
         if GEMINI_AVAILABLE_FOR_REQUEST:
             casual_response = await generate_casual_response_with_gemini(
-                utterance, casual_type, conversation_history
+                utterance, casual_type, conversation_history, user_id
             )
         else:
             casual_response = generate_casual_response_fallback(casual_type, user_id)
@@ -1023,6 +991,20 @@ async def handle_recommendation_logic(
             if last_rec
             else "점심 메뉴 추천해드릴까요? 😊"
         )
+        session_manager.add_conversation(user_id, "user", utterance)
+        session_manager.add_conversation(user_id, "bot", response_text)
+
+    elif intent == "explain":
+        last_rec = session_manager.get_last_recommendation(user_id)
+        if last_rec:
+            # Gemini가 가능하면 Gemini로, 아니면 로컬 설명 생성
+            if GEMINI_AVAILABLE_FOR_REQUEST:
+                response_text = await generate_explanation_with_gemini(last_rec, conversation_history, intent_data)
+            else:
+                response_text = generate_explanation_fallback(last_rec, weather=actual_weather, mood=intent_data.get("mood"))
+        else:
+            response_text = "아직 추천해드린 메뉴가 없어요! 먼저 메뉴를 추천해드릴까요? 😊"
+        
         session_manager.add_conversation(user_id, "user", utterance)
         session_manager.add_conversation(user_id, "bot", response_text)
 
