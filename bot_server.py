@@ -1125,16 +1125,29 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
         if intent == "explain":
             last_rec = session_manager.get_last_recommendation(user_id)
             if last_rec:
-                # 마지막 추천이 있으면 그 이유를 설명해줌
-                explanation = generate_explanation_fallback(last_rec, weather=weather, mood=intent_data.get("mood"))
-                # [다양화] 설명 앞에 붙는 멘트도 랜덤화
-                prefixes = [
-                    "아, 그 메뉴를 고른 이유요? 바로 이거예요! 👇\n\n",
-                    "제가 왜 여길 골랐는지 궁금하시죠? ✨\n\n",
-                    "마스터님을 위해 고민한 결과입니다! 👏\n\n",
-                    "이런 특별한 이유가 있었답니다. 😊\n\n"
-                ]
-                return get_final_kakao_response(f"{random.choice(prefixes)}{explanation}")
+                try:
+                    # 마지막 추천이 있으면 그 이유를 설명해줌
+                    explanation = generate_explanation_fallback(last_rec, weather=weather, mood=intent_data.get("mood"))
+                    # [다양화] 설명 앞에 붙는 멘트도 랜덤화
+                    prefixes = [
+                        "아, 그 메뉴를 고른 이유요? 바로 이거예요! 👇\n\n",
+                        "제가 왜 여길 골랐는지 궁금하시죠? ✨\n\n",
+                        "마스터님을 위해 고민한 결과입니다! 👏\n\n",
+                        "이런 특별한 이유가 있었답니다. 😊\n\n"
+                    ]
+                    
+                    final_text = f"{random.choice(prefixes)}{explanation}"
+                    
+                    # [DEFENSIVE] 2001 에러 방지 (길이/내용 체크)
+                    if not final_text or len(final_text) > 900:
+                        print(f"⚠️ Text too long or empty ({len(final_text)}): {final_text[:50]}...")
+                        final_text = f"'{last_rec.get('name')}' 가보시면 절대 후회 안 하실 거예요! 믿고 드셔보세요. 👍"
+                        
+                    return get_final_kakao_response(final_text)
+                    
+                except Exception as ex:
+                    print(f"🚨 Explain Gen Failed: {ex}")
+                    return get_final_kakao_response(f"'{last_rec.get('name')}' 정말 맛있는 곳이라 추천드렸어요! 😊")
             else:
                 # 추천 내역이 없으면 자연스럽게 추천으로 유도
                 return get_final_kakao_response("아직 제가 아무것도 추천드리지 않았네요! 😊 맛있는 메뉴 하나 골라드릴까요?")
