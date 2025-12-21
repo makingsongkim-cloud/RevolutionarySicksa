@@ -232,7 +232,8 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
         intent = "casual"
         casual_type = "thanks"
     elif any(word in utterance_lower for word in ["왜", "이유", "why", "어째서", "이유는"]):
-        intent = "explain"
+        # [CRITICAL] 설명 요청은 최우선순위로 처리하고 즉시 반환 (오버라이드 방지)
+        return {"intent": "explain", "casual_type": None, "emotion": "neutral", "cuisine_filters": [], "weather": None, "mood": None, "tag_filters": []}
     elif any(word in utterance_lower for word in ["싫", "별로", "다른", "아니", "no", "패스"]):
         intent = "reject"
     # recommend (명확한 키워드가 있을 때만 추천)
@@ -1116,6 +1117,8 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
         r.refresh_data()
         intent_data = analyze_intent_fallback(utterance)
         intent = intent_data.get("intent")
+        print(f"🚨 Fallback Logic | Utterance: '{utterance}' | Detected Intent: '{intent}'")
+        
         if weather: intent_data["weather"] = weather
         
         # [NEW] '이유(explain)' 물어봤는데 비상 모드인 경우
