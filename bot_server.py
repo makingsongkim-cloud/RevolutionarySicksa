@@ -1155,8 +1155,10 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
     # [핵심] 조합형 엔진으로 멘트 다양화
     message = build_varied_recommendation(fallback_menu, intent_data)
     
+    # [FIX] 세션에 추천 이력을 저장해야 "이유는?" 질문에 대답할 수 있음
     try:
-        r.history_mgr.save_history(user_id, fallback_menu['name'])
+        r.history_mgr.save_history(user_id, fallback_menu['name']) # 장기 기억 (중복 방지)
+        session_manager.set_last_recommendation(user_id, fallback_menu) # 단기 기억 (문맥 대화)
     except:
         pass
         
