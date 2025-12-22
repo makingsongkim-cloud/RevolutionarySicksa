@@ -1047,7 +1047,7 @@ async def handle_recommendation_logic(
 
     # 인텐트에 따른 처리 분기
     if intent == "casual":
-        if GEMINI_AVAILABLE_FOR_REQUEST:
+        if GEMINI_AVAILABLE_FOR_REQUEST and not _gemini_in_cooldown():
             casual_response = await generate_casual_response_with_gemini(
                 utterance, casual_type, conversation_history, user_id, meal_label=meal_label
             )
@@ -1080,7 +1080,7 @@ async def handle_recommendation_logic(
                     await generate_response_with_gemini(
                         utterance, choice, intent_data, conversation_history, meal_label=meal_label
                     )
-                    if GEMINI_AVAILABLE_FOR_REQUEST
+                    if (GEMINI_AVAILABLE_FOR_REQUEST and not _gemini_in_cooldown())
                     else generate_response_message(choice, intent_data, meal_label=meal_label)
                 )
                 response_text = (
@@ -1114,7 +1114,7 @@ async def handle_recommendation_logic(
                 await generate_response_with_gemini(
                     utterance, choice, intent_data, conversation_history, meal_label=meal_label
                 )
-                if GEMINI_AVAILABLE_FOR_REQUEST
+                if (GEMINI_AVAILABLE_FOR_REQUEST and not _gemini_in_cooldown())
                 else generate_response_message(choice, intent_data, meal_label=meal_label)
             )
             response_text = f"알겠습니다! 다른 메뉴로 추천드릴게요 😊\n\n" + menu_res
@@ -1137,7 +1137,7 @@ async def handle_recommendation_logic(
         last_rec = session_manager.get_last_recommendation(user_id)
         if last_rec:
             # Gemini가 가능하면 Gemini로, 아니면 로컬 설명 생성
-            if GEMINI_AVAILABLE_FOR_REQUEST:
+            if GEMINI_AVAILABLE_FOR_REQUEST and not _gemini_in_cooldown():
                 response_text = await generate_explanation_with_gemini(
                     utterance,
                     last_rec,
@@ -1167,7 +1167,7 @@ async def handle_recommendation_logic(
         if choice:
             recommended_in_response = True
             session_manager.set_last_recommendation(user_id, choice)
-            if GEMINI_AVAILABLE_FOR_REQUEST:
+            if GEMINI_AVAILABLE_FOR_REQUEST and not _gemini_in_cooldown():
                 response_text = await generate_response_with_gemini(
                     utterance, choice, intent_data, conversation_history, meal_label=meal_label
                 )
