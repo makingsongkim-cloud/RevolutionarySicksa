@@ -78,7 +78,7 @@ try:
         gemini_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
         
         # Intent 분석용 모델
-        intent_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
+intent_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
         
         GEMINI_AVAILABLE = True
         logger.info("✅ Gemini API 연동 성공!")
@@ -165,9 +165,28 @@ def get_josa(word: str, particle_type: str) -> str:
 import asyncio
 INTENT_TIMEOUT_SEC = 1.8
 GENERATION_TIMEOUT_SEC = 1.5
+GEMINI_COOLDOWN_SEC = 60
+GEMINI_COOLDOWN_UNTIL = 0.0
+
+
+def _is_rate_limited_error(err: Exception) -> bool:
+    msg = str(err).lower()
+    return "429" in msg or "quota" in msg or "rate limit" in msg
+
+
+def _gemini_in_cooldown() -> bool:
+    return time.time() < GEMINI_COOLDOWN_UNTIL
+
+
+def _set_gemini_cooldown() -> None:
+    global GEMINI_COOLDOWN_UNTIL
+    GEMINI_COOLDOWN_UNTIL = time.time() + GEMINI_COOLDOWN_SEC
 
 async def run_gemini_with_timeout(model, prompt: str, timeout_sec: float, log_label: str):
     """Execute Gemini call with a strict timeout and return text or None."""
+    if _gemini_in_cooldown():
+        logger.warning(f"{log_label} skipped: Gemini in cooldown")
+        return None
     try:
         # 가급적 자체 비동기 메서드 사용
         response = await asyncio.wait_for(model.generate_content_async(prompt), timeout=timeout_sec)
@@ -175,6 +194,9 @@ async def run_gemini_with_timeout(model, prompt: str, timeout_sec: float, log_la
     except asyncio.TimeoutError:
         logger.warning(f"{log_label} timeout after {timeout_sec}s")
     except Exception as e:
+        if _is_rate_limited_error(e):
+            _set_gemini_cooldown()
+            logger.warning(f"{log_label} rate-limited; entering cooldown")
         logger.warning(f"{log_label} fail: {e}")
     return None
 
@@ -234,6 +256,8 @@ def get_time_context(utterance: str) -> Dict[str, Optional[str]]:
 
 async def analyze_intent_with_gemini(utterance: str, conversation_history: List[Dict]) -> Dict[str, Any]:
     """Gemini API를 사용하여 사용자 의도를 분석합니다. (Short Prompt + Strict Config)"""
+    if _gemini_in_cooldown():
+        return analyze_intent_fallback(utterance)
     try:
         history_text = format_history(conversation_history, limit=2)
         
@@ -273,6 +297,9 @@ JSON만 출력:"""
         return result
         
     except (asyncio.TimeoutError, Exception) as e:
+        if _is_rate_limited_error(e):
+            _set_gemini_cooldown()
+            logger.warning("⚠️ Intent 분석 rate-limited; entering cooldown")
         logger.warning(f"⚠️ Intent 분석 실패/타임아웃: {e}")
         return analyze_intent_fallback(utterance)
 
@@ -717,13 +744,15 @@ def generate_response_message(choice: dict, intent_data: Dict, meal_label: str =
     selected_prefix = random.choice(prefixes) if prefixes else ""
     message = f"{emotion_prefix}{selected_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}{rain_tip}"
     
-    # 반복 문장 제거(연속 중복 방지)
-    lines = message.splitlines()
-    deduped = []
-    for line in lines:
-        if not deduped or line != deduped[-1]:
-            deduped.append(line)
-    return "\n".join(deduped)
+    # 반복 문장 제거 (emotion_prefix와 selected_prefix 중복 방지)
+    # emotion_prefix가 이미 감정 표현을 포함하고 있으면 selected_prefix는 스킵
+    if emotion_prefix and selected_prefix:
+        # 핵심 키워드가 겹치면 중복으로 간주
+        emotion_keywords = ["화", "풀", "맛있는", "스트레스", "기분", "우울", "피곤", "행복"]
+        if any(kw in emotion_prefix and kw in selected_prefix for kw in emotion_keywords):
+            message = f"{emotion_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}{rain_tip}"
+    
+    return message
 
 
 @app.post("/api/lunch")
@@ -984,6 +1013,10 @@ async def handle_recommendation_logic(
         GEMINI_AVAILABLE_FOR_REQUEST = False
     elif not GEMINI_AVAILABLE:
         logger.info("⚡ Fallback: Gemini Not Configured")
+        intent_data = fast_intent
+        GEMINI_AVAILABLE_FOR_REQUEST = False
+    elif _gemini_in_cooldown():
+        logger.info("⚡ Fallback: Gemini Rate Limited (Cooldown)")
         intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
     else:
