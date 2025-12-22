@@ -168,6 +168,51 @@ def format_history(conversation_history: List[Dict], limit: int = 2) -> str:
         f"{h['role']}: {h['message']}"
         for h in conversation_history[-limit:]
     ])
+def get_meal_label(now: Optional[datetime] = None) -> str:
+    """현재 시간 기준 추천 식사 라벨 반환. 회사 식사 시간 기준."""
+    current = now or datetime.now()
+    hour = current.hour
+    # 11시~18시: 점심 (공식 점심시간 11~14시 포함)
+    if 11 <= hour < 18:
+        return "점심"
+    # 18시~20시: 저녁
+    elif 18 <= hour < 20:
+        return "저녁"
+    # 그 외 시간: 기본값 "점심" (원래 로직)
+    else:
+        return "점심"
+
+
+def get_requested_meal_label(utterance: str) -> Optional[str]:
+    """사용자 발화에서 명시된 식사 라벨을 추출합니다."""
+    if not utterance:
+        return None
+    candidates = {
+        "아침": ["아침"],
+        "점심": ["점심"],
+        "저녁": ["저녁"],
+    }
+    utter = utterance.replace(" ", "")
+    earliest = None
+    for label, keywords in candidates.items():
+        for kw in keywords:
+            idx = utter.find(kw)
+            if idx != -1 and (earliest is None or idx < earliest[0]):
+                earliest = (idx, label)
+    return earliest[1] if earliest else None
+
+
+def get_time_context(utterance: str) -> Dict[str, Optional[str]]:
+    """현재/요청 식사 라벨 및 늦은 저녁 여부를 반환합니다."""
+    now = datetime.now()
+    current_label = get_meal_label(now)
+    requested_label = get_requested_meal_label(utterance)
+    is_late_evening = current_label == "저녁" and now.hour >= 20
+    return {
+        "current_label": current_label,
+        "requested_label": requested_label,
+        "is_late_evening": is_late_evening,
+    }
 
 async def analyze_intent_with_gemini(utterance: str, conversation_history: List[Dict]) -> Dict[str, Any]:
     """Gemini API를 사용하여 사용자 의도를 분석합니다. (Short Prompt + Strict Config)"""
@@ -364,7 +409,13 @@ def generate_explanation_fallback(rec: Dict, weather: Optional[str] = None, mood
     return f"'{name}'(을)를 추천한 이유요?\n\n{reason_logic}{extra}\n\n{random.choice(closers)}"
 
 
-async def generate_casual_response_with_gemini(utterance: str, casual_type: str, conversation_history: List[Dict], user_id: str = "Master") -> str:
+async def generate_casual_response_with_gemini(
+    utterance: str,
+    casual_type: str,
+    conversation_history: List[Dict],
+    user_id: str = "Master",
+    meal_label: str = "점심",
+) -> str:
     """일상 대화 응답 (Short Prompt)"""
     history_text = format_history(conversation_history)
     
@@ -372,6 +423,7 @@ async def generate_casual_response_with_gemini(utterance: str, casual_type: str,
 히스토리:
 {history_text}
 사용자: {utterance}
+현재 추천 식사: {meal_label}
 
 가이드:
 1. 친구처럼 밝고 공감하는 말투 (이모지 사용)
@@ -386,33 +438,33 @@ async def generate_casual_response_with_gemini(utterance: str, casual_type: str,
     )
     if response_text:
         return response_text
-    return generate_casual_response_fallback(casual_type, user_id)
+    return generate_casual_response_fallback(casual_type, user_id, meal_label=meal_label)
 
 
-def generate_casual_response_fallback(casual_type: str, user_id: str = "Master") -> str:
+def generate_casual_response_fallback(casual_type: str, user_id: str = "Master", meal_label: str = "점심") -> str:
     """
     일상 대화 기본 응답 (Fallback)
     """
     if casual_type == "greeting":
-        return "안녕하세요! 😊 점심 메뉴 고민되시나요? 추천해드릴게요!"
+        return f"안녕하세요! 😊 {meal_label} 메뉴 고민되시나요? 추천해드릴게요!"
     elif casual_type == "thanks":
-        return "천만에요! 맛있게 드세요~ 🍽️ 다음에도 점심 고민되시면 언제든 불러주세요!"
+        return f"천만에요! 맛있게 드세요~ 🍽️ 다음에도 {meal_label} 고민되시면 언제든 불러주세요!"
     else:
         # 야, 등 짧은 호출이나 잡담에 대한 대응
         messages = [
-            "네! 점심 메뉴 고민이신가요? 🤔",
-            "부르셨나요? 맛있는 점심 추천해드릴까요? 😋",
-            "심심하신가요? 저랑 점심 메뉴 고르기 해요! 🎲",
-            "네! 무슨 일이신가요? 배고프시면 '점심 추천'이라고 말해보세요!",
-            "음... 글쎄요? 점심 메뉴 추천이라면 자신 있습니다! 😎",
+            f"네! {meal_label} 메뉴 고민이신가요? 🤔",
+            f"부르셨나요? 맛있는 {meal_label} 추천해드릴까요? 😋",
+            f"심심하신가요? 저랑 {meal_label} 메뉴 고르기 해요! 🎲",
+            f"네! 무슨 일이신가요? 배고프시면 '{meal_label} 추천'이라고 말해보세요!",
+            f"음... 글쎄요? {meal_label} 메뉴 추천이라면 자신 있습니다! 😎",
             "무슨 말씀인지 잘 모르겠지만... 배고프신 건 아니죠? 밥이나 먹으러 가요! 🍚",
             "혹시 비밀번호 물어보신 거 아니죠? 🤐 (농담입니다)",
-            "오늘 점심 뭐 드실까요? 제가 골라드릴게요! 🍽️",
+            f"오늘 {meal_label} 뭐 드실까요? 제가 골라드릴게요! 🍽️",
             "배고프신가요? 맛집 추천해드릴게요! 😊",
-            "점심 시간이네요! 어떤 메뉴 드시고 싶으세요? 🤗",
-            "저를 부르셨나요? 점심 메뉴 고민 해결사 등장! 💪",
-            "네네! 오늘도 맛있는 점심 찾아드릴게요! ✨",
-            "무슨 일이신가요? 점심 추천이 필요하시면 말씀해주세요! 🙌"
+            f"{meal_label} 시간이네요! 어떤 메뉴 드시고 싶으세요? 🤗",
+            f"저를 부르셨나요? {meal_label} 메뉴 고민 해결사 등장! 💪",
+            f"네네! 오늘도 맛있는 {meal_label} 찾아드릴게요! ✨",
+            f"무슨 일이신가요? {meal_label} 추천이 필요하시면 말씀해주세요! 🙌"
         ]
         import random
         return random.choice(messages)
@@ -477,7 +529,13 @@ async def generate_explanation_with_gemini(utterance: str, last_recommendation: 
         return response_text
     return generate_explanation_fallback(last_recommendation, weather, mood)
 
-async def generate_response_with_gemini(utterance: str, choice: dict, intent_data: Dict, conversation_history: List[Dict]) -> str:
+async def generate_response_with_gemini(
+    utterance: str,
+    choice: dict,
+    intent_data: Dict,
+    conversation_history: List[Dict],
+    meal_label: str = "점심",
+) -> str:
     """추천 멘트 생성 (Short Prompt)"""
     name = choice['name']
     category = choice.get('category', '')
@@ -489,11 +547,12 @@ async def generate_response_with_gemini(utterance: str, choice: dict, intent_dat
     tone = "위로하는 톤" if emotion == "negative" else "밝은 톤"
     prefix = build_emotion_prefix(intent_data)
     
-    prompt = f"""점심 추천 멘트 작성 ({tone}):
+    prompt = f"""{meal_label} 추천 멘트 작성 ({tone}):
 사용자: "{utterance}"
 메뉴: {name} ({category}, {area})
 특징: {', '.join(tags)}
 {context}
+현재 추천 식사: {meal_label}
 
 가이드:
 1. 친근하게 2문장
@@ -514,7 +573,7 @@ async def generate_response_with_gemini(utterance: str, choice: dict, intent_dat
     return prefix + generate_response_message(choice, intent_data)
 
 
-def generate_response_message(choice: dict, intent_data: Dict) -> str:
+def generate_response_message(choice: dict, intent_data: Dict, meal_label: str = "점심") -> str:
     """
     기본 응답 메시지를 생성합니다 (Fallback).
     """
@@ -678,13 +737,23 @@ async def handle_recommendation_logic(
     is_help_request = fast_intent.get("intent") == "help"
     is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
     is_short_casual = len(utterance.strip()) <= 2
+    time_ctx = get_time_context(utterance)
+    current_meal_label = time_ctx["current_label"] or "점심"
+    requested_meal_label = time_ctx["requested_label"]
+    is_late_evening = bool(time_ctx["is_late_evening"])
+    meal_label = requested_meal_label or current_meal_label
+    mismatch_notice = (
+        f"지금은 {current_meal_label} 시간인데, {meal_label}으로 추천해드릴까요? 😊"
+        if requested_meal_label and requested_meal_label != current_meal_label
+        else ""
+    )
     
     # 0.1 웰컴/도움말/단답형 즉시 반환 (0.01초 내 응답 목표)
     if is_welcome_event:
         print("⚡ Ultra Fast Track: Welcome Event")
         # generate_casual_response_fallback는 동기 함수이므로 await 제거
         return get_final_kakao_response(
-            generate_casual_response_fallback("greeting", user_id)
+            generate_casual_response_fallback("greeting", user_id, meal_label=meal_label)
         )
     elif is_help_request:
         print("⚡ Ultra Fast Track: Help Request")
@@ -692,7 +761,7 @@ async def handle_recommendation_logic(
     elif is_short_casual:
         print(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
         return get_final_kakao_response(
-            generate_casual_response_fallback("chitchat", user_id)
+            generate_casual_response_fallback("chitchat", user_id, meal_label=meal_label)
         )
 
     # 1. 태아웃 방지용 기록 및 이스터에그
@@ -817,7 +886,7 @@ async def handle_recommendation_logic(
         cond_display = cond if cond else "정보 없음"
         temp_display = temp if temp else "정보 없음"
 
-        response_text = f"🌡️ 현재 날씨 정보\n\n상태: {cond_display}\n기온: {temp_display}\n\n날씨에 맞는 점심 추천해드릴까요? 😊"
+        response_text = f"🌡️ 현재 날씨 정보\n\n상태: {cond_display}\n기온: {temp_display}\n\n날씨에 맞는 {meal_label} 추천해드릴까요? 😊"
 
         session_manager.add_conversation(user_id, "user", utterance)
         session_manager.add_conversation(user_id, "bot", response_text)
@@ -905,10 +974,10 @@ async def handle_recommendation_logic(
     if intent == "casual":
         if GEMINI_AVAILABLE_FOR_REQUEST:
             casual_response = await generate_casual_response_with_gemini(
-                utterance, casual_type, conversation_history, user_id
+                utterance, casual_type, conversation_history, user_id, meal_label=meal_label
             )
         else:
-            casual_response = generate_casual_response_fallback(casual_type, user_id)
+            casual_response = generate_casual_response_fallback(casual_type, user_id, meal_label=meal_label)
 
         is_question = any(utterance.strip().endswith(m) for m in ["?", "냐", "까", "니", "요", "죠"])
         has_strong_keyword = any(
@@ -930,13 +999,13 @@ async def handle_recommendation_logic(
                 session_manager.set_last_recommendation(user_id, choice)
                 menu_response = (
                     await generate_response_with_gemini(
-                        utterance, choice, intent_data, conversation_history
+                        utterance, choice, intent_data, conversation_history, meal_label=meal_label
                     )
                     if GEMINI_AVAILABLE_FOR_REQUEST
-                    else generate_response_message(choice, intent_data)
+                    else generate_response_message(choice, intent_data, meal_label=meal_label)
                 )
                 response_text = (
-                    f"{casual_response}\n\n오늘 점심은 이 메뉴 어떠세요?\n\n{menu_response}"
+                    f"{casual_response}\n\n오늘 {meal_label}은 이 메뉴 어떠세요?\n\n{menu_response}"
                 )
                 session_manager.add_conversation(user_id, "user", utterance, choice)
             else:
@@ -961,10 +1030,10 @@ async def handle_recommendation_logic(
             session_manager.set_last_recommendation(user_id, choice)
             menu_res = (
                 await generate_response_with_gemini(
-                    utterance, choice, intent_data, conversation_history
+                    utterance, choice, intent_data, conversation_history, meal_label=meal_label
                 )
                 if GEMINI_AVAILABLE_FOR_REQUEST
-                else generate_response_message(choice, intent_data)
+                else generate_response_message(choice, intent_data, meal_label=meal_label)
             )
             response_text = f"알겠습니다! 다른 메뉴로 추천드릴게요 😊\n\n" + menu_res
             session_manager.add_conversation(user_id, "user", utterance, choice)
@@ -977,7 +1046,7 @@ async def handle_recommendation_logic(
         response_text = (
             f"좋은 선택이에요! {last_rec['name']} 맛있게 드세요~ 🍽️😊"
             if last_rec
-            else "점심 메뉴 추천해드릴까요? 😊"
+            else f"{meal_label} 메뉴 추천해드릴까요? 😊"
         )
         session_manager.add_conversation(user_id, "user", utterance)
         session_manager.add_conversation(user_id, "bot", response_text)
@@ -1015,10 +1084,10 @@ async def handle_recommendation_logic(
             session_manager.set_last_recommendation(user_id, choice)
             if GEMINI_AVAILABLE_FOR_REQUEST:
                 response_text = await generate_response_with_gemini(
-                    utterance, choice, intent_data, conversation_history
+                    utterance, choice, intent_data, conversation_history, meal_label=meal_label
                 )
             else:
-                response_text = generate_response_message(choice, intent_data)
+                response_text = generate_response_message(choice, intent_data, meal_label=meal_label)
             session_manager.add_conversation(user_id, "user", utterance, choice)
             session_manager.add_conversation(user_id, "bot", response_text)
         else:
@@ -1044,7 +1113,7 @@ async def handle_recommendation_logic(
     return get_final_kakao_response(final_text)
 
 
-def build_varied_recommendation(choice: Dict, intent_data: Dict) -> str:
+def build_varied_recommendation(choice: Dict, intent_data: Dict, meal_label: str = "점심") -> str:
     """천 가지 이상의 조합으로 자연스럽고 다양한 추천 멘트를 생성합니다 (Fallback용)."""
     import random
     name = choice.get('name', '추천 메뉴')
@@ -1062,18 +1131,18 @@ def build_varied_recommendation(choice: Dict, intent_data: Dict) -> str:
         "기분 전환에 딱 좋은 메뉴를 발견했어요! 🌈",
         "든든한 한 끼를 위해 이곳을 추천드립니다! 💪",
         "오늘 같은 날씨엔 이런 메뉴가 진리죠! ⛅",
-        "맛점의 진수! 여기를 강력 추천합니다! 🍽️",
+        "맛있는 한 끼! 여기를 강력 추천합니다! 🍽️",
         "고민 해결! 제가 대신 골라드렸습니다. 😎"
     ]
     
     # 2. 추천 본문 (15종)
     bodies = [
-        f"오늘 점심은 **[{name}]** 어떠세요? {area}에 있어서 가깝답니다!",
+        f"오늘 {meal_label}은 **[{name}]** 어떠세요? {area}에 있어서 가깝답니다!",
         f"**[{name}]** 한 번 가보시는 걸 추천드려요! ({area})",
         f"**[{name}]** 이(가) 오늘 메뉴로 아주 좋을 것 같아요! {area}에 있네요.",
         f"**[{name}]** 어떨까요? {area} 라서 접근성도 최고입니다!",
         f"제 추천은 바로 **[{name}]** 입니다! 위치는 {area} 예요.",
-        f"오늘은 **[{name}]** 어떠신가요? {area} 에 위치해 있습니다!",
+        f"오늘 {meal_label}은 **[{name}]** 어떠신가요? {area} 에 위치해 있습니다!",
         f"마스터님께 딱 맞는 **[{name}]** 추천드립니다! ({area})",
         f"고민 말고 **[{name}]** 으로 고고! {area} 에 있어요.",
         f"**[{name}]** 에서 맛있는 한 끼 어떠세요? {area} 입니다!",
@@ -1082,7 +1151,7 @@ def build_varied_recommendation(choice: Dict, intent_data: Dict) -> str:
         f"후회 없는 선택! **[{name}]** 추천합니다! {area} 에 있어요.",
         f"**[{name}]** 이(가) 마스터님을 기다리고 있어요! ({area})",
         f"오늘은 **[{name}]** 으로 결정! {area} 에 있답니다.",
-        f"마스터님의 맛점을 위해 **[{name}]** 준비해봤습니다! ({area})"
+        f"마스터님의 맛있는 한 끼를 위해 **[{name}]** 준비해봤습니다! ({area})"
     ]
     
     # 3. 마무리 (10종)
@@ -1091,12 +1160,12 @@ def build_varied_recommendation(choice: Dict, intent_data: Dict) -> str:
         "맛있게 드시고 힘찬 오후 보내세요! 🍽️",
         "든든하게 먹고 기분 좋게 시작해봐요! 💪",
         "제가 고른 만큼 정말 맛있을 겁니다! ✨",
-        "마스터님의 맛점을 제가 응원합니다! 🤗",
+        "맛있는 한 끼를 제가 응원합니다! 🤗",
         "오늘 하루도 화이팅이에요! 맛있는 식사 되세요! 🌈",
         "다녀오시면 리뷰 한 번 들려주세요! 😋",
-        "실패 없는 맛점, 제가 보장합니다! 👍",
+        "실패 없는 한 끼, 제가 보장합니다! 👍",
         "즐겁게 식사하시고 오세요! 🍱",
-        "마스터님께 기쁨을 주는 점심 시간이 되길! ✨"
+        f"마스터님께 기쁨을 주는 {meal_label} 시간이 되길! ✨"
     ]
     
     return f"{random.choice(headers)}\n\n{random.choice(bodies)}\n\n{random.choice(closers)}"
@@ -1159,7 +1228,8 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
         fallback_menu = random.choice(r.menus) if r.menus else {"name": "회사 근처 맛집", "area": "근처"}
 
     # [핵심] 조합형 엔진으로 멘트 다양화
-    message = build_varied_recommendation(fallback_menu, intent_data)
+    meal_label = get_meal_label()
+    message = build_varied_recommendation(fallback_menu, intent_data, meal_label=meal_label)
     
     # [FIX] 세션에 추천 이력을 저장해야 "이유는?" 질문에 대답할 수 있음
     try:
