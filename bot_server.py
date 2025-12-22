@@ -78,7 +78,7 @@ try:
         gemini_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
         
         # Intent 분석용 모델
-intent_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
+        intent_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
         
         GEMINI_AVAILABLE = True
         logger.info("✅ Gemini API 연동 성공!")
