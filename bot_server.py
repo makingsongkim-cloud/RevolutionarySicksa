@@ -172,13 +172,13 @@ def get_meal_label(now: Optional[datetime] = None) -> str:
     """현재 시간 기준 추천 식사 라벨 반환. 회사 식사 시간 기준."""
     current = now or datetime.now()
     hour = current.hour
-    # 11시~18시: 점심 (공식 점심시간 11~14시 포함)
+    # 11시~18시: 점심
     if 11 <= hour < 18:
         return "점심"
     # 18시~20시: 저녁
     elif 18 <= hour < 20:
         return "저녁"
-    # 그 외 시간: 기본값 "점심" (원래 로직)
+    # 그 외 시간: 기본값 "점심"
     else:
         return "점심"
 
