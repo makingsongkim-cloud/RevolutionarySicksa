@@ -7,6 +7,7 @@ import os
 import random
 import asyncio
 import time
+import logging
 from dotenv import load_dotenv
 from session_manager import session_manager
 from rate_limiter import rate_limiter
@@ -22,6 +23,18 @@ weather_cache = {
 
 # 환경 변수 로드
 load_dotenv()
+
+# 기본 로깅 설정 (파일 + 콘솔)
+LOG_PATH = os.path.join(os.path.dirname(__file__), "bot.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_PATH, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger("lunch_bot")
 
 app = FastAPI()
 
@@ -68,13 +81,13 @@ try:
         intent_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
         
         GEMINI_AVAILABLE = True
-        print("✅ Gemini API 연동 성공!")
+        logger.info("✅ Gemini API 연동 성공!")
     else:
         GEMINI_AVAILABLE = False
-        print("⚠️  GEMINI_API_KEY가 설정되지 않았습니다. 키워드 매칭 방식으로 작동합니다.")
+        logger.warning("⚠️  GEMINI_API_KEY가 설정되지 않았습니다. 키워드 매칭 방식으로 작동합니다.")
 except Exception as e:
     GEMINI_AVAILABLE = False
-    print(f"⚠️  Gemini API 초기화 실패: {e}. 키워드 매칭 방식으로 작동합니다.")
+    logger.warning(f"⚠️  Gemini API 초기화 실패: {e}. 키워드 매칭 방식으로 작동합니다.")
 
 # 키워드 매핑 딕셔너리 (Fallback용)
 CUISINE_KEYWORDS = {
@@ -160,9 +173,9 @@ async def run_gemini_with_timeout(model, prompt: str, timeout_sec: float, log_la
         response = await asyncio.wait_for(model.generate_content_async(prompt), timeout=timeout_sec)
         return (response.text or "").strip()
     except asyncio.TimeoutError:
-        print(f"{log_label} timeout after {timeout_sec}s")
+        logger.warning(f"{log_label} timeout after {timeout_sec}s")
     except Exception as e:
-        print(f"{log_label} fail: {e}")
+        logger.warning(f"{log_label} fail: {e}")
     return None
 
 def format_history(conversation_history: List[Dict], limit: int = 2) -> str:
@@ -260,7 +273,7 @@ JSON만 출력:"""
         return result
         
     except (asyncio.TimeoutError, Exception) as e:
-        print(f"⚠️ Intent 분석 실패/타임아웃: {e}")
+        logger.warning(f"⚠️ Intent 분석 실패/타임아웃: {e}")
         return analyze_intent_fallback(utterance)
 
 
@@ -732,16 +745,16 @@ async def recommend_lunch(payload: SkillPayload):
             timeout=4.3,
         )
         duration = time.time() - start_handle
-        print(f"⏱️ Request handled in {duration:.2f}s")
+        logger.info(f"⏱️ Request handled in {duration:.2f}s")
         return response
     except asyncio.TimeoutError:
         timeout_duration = time.time() - total_start
-        print(f"🚨 Global Timeout triggered after {timeout_duration:.2f}s")
+        logger.error(f"🚨 Global Timeout triggered after {timeout_duration:.2f}s")
         # 현재까지 수집된 날씨/기분 정보를 바탕으로 '최선의 로컬 응답' 생성
         weather = weather_cache.get("mapped_weather")
         return get_emergency_fallback_response("global_timeout", utterance=utterance, user_id=user_id, weather=weather)
     except Exception as e:
-        print(f"🚨 Unhandled Error: {e}")
+        logger.exception(f"🚨 Unhandled Error: {e}")
         import traceback
         traceback.print_exc()
         return get_emergency_fallback_response(str(e), utterance=utterance, user_id=user_id)
@@ -773,22 +786,22 @@ async def handle_recommendation_logic(
     
     # 0.1 웰컴/도움말/단답형 즉시 반환 (0.01초 내 응답 목표)
     if is_welcome_event:
-        print("⚡ Ultra Fast Track: Welcome Event")
+        logger.info("⚡ Ultra Fast Track: Welcome Event")
         # generate_casual_response_fallback는 동기 함수이므로 await 제거
         return get_final_kakao_response(
             generate_casual_response_fallback("greeting", user_id, meal_label=meal_label)
         )
     elif is_help_request:
-        print("⚡ Ultra Fast Track: Help Request")
+        logger.info("⚡ Ultra Fast Track: Help Request")
         return get_help_response()
     elif is_short_casual:
-        print(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
+        logger.info(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
         return get_final_kakao_response(
             generate_casual_response_fallback("chitchat", user_id, meal_label=meal_label)
         )
 
     # 1. 태아웃 방지용 기록 및 이스터에그
-    print(f"\n[Request Processing] '{utterance}'")
+    logger.info(f"[Request Processing] '{utterance}' | user={user_id}")
     
     # 이스터에그
     easter_egg_keywords = [
@@ -884,7 +897,7 @@ async def handle_recommendation_logic(
         actual_weather = weather_cache.get("mapped_weather")
     # 추가된 마스터모드 이스터 에그
     if utterance == "마스터모드":
-        print("Easter Egg: Master Mode Activated")
+        logger.info("Easter Egg: Master Mode Activated")
         return get_final_kakao_response("마스터 모드가 활성화되었습니다. (디버깅용)")
 
     # [병렬화 결과 획득]
@@ -938,44 +951,44 @@ async def handle_recommendation_logic(
 
     # 4.3 의도 결정 로직 (Short-circuit)
     if is_welcome_event:
-        print("⚡ Fast Track: Welcome Event")
+        logger.info("⚡ Fast Track: Welcome Event")
         intent_data = {"intent": "casual", "casual_type": "greeting"}
         GEMINI_AVAILABLE_FOR_REQUEST = False
     elif is_help_request:
-        print("⚡ Fast Track: Help Request (Skipping Gemini)")
+        logger.info("⚡ Fast Track: Help Request (Skipping Gemini)")
         intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
     elif has_target_keyword:
-        print("⚡ Smart Patch: Target Keyword Detected (Skipping Gemini Intent)")
+        logger.info("⚡ Smart Patch: Target Keyword Detected (Skipping Gemini Intent)")
         intent_data = fast_intent
         # 키워드가 있으면 intent를 'recommend'로 강제 (fallback 내부에서 처리되지만 확실히 함)
         intent_data["intent"] = "recommend"
         # 의도 분석은 스킵하지만, 응답 생성 시 Gemini 분위기 조성을 위해 GEMINI_AVAILABLE_FOR_REQUEST는 유지
         GEMINI_AVAILABLE_FOR_REQUEST = GEMINI_AVAILABLE
     elif len(utterance.strip()) <= 2:
-        print(f"⚡ Super-Fast Track: Very Short Utterance ({utterance})")
+        logger.info(f"⚡ Super-Fast Track: Very Short Utterance ({utterance})")
         # 단답형(야, 왜, 어, ㄴ, ㅇ 등)은 Gemini를 거치지 않고 바로 답변
         intent_data = fast_intent
         
         # [FIX] '왜' 같은 질문이 들어왔을 때 intent가 'explain'이면 그대로 유지
         if intent_data.get("intent") == "explain":
-            print("  -> Intent is EXPLAIN (Preserving)")
+            logger.info("  -> Intent is EXPLAIN (Preserving)")
             GEMINI_AVAILABLE_FOR_REQUEST = False # 로컬 설명 생성기로 연결
         else:
             GEMINI_AVAILABLE_FOR_REQUEST = False
     elif len(utterance) < 15 and any(
         k in utterance for k in ["점심", "밥", "뭐먹", "배고파", "랜덤"]
     ):
-        print("⚡ Fast Track: Simple Recommend (Skipping Gemini)")
+        logger.info("⚡ Fast Track: Simple Recommend (Skipping Gemini)")
         intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
     elif not GEMINI_AVAILABLE:
-        print("⚡ Fallback: Gemini Not Configured")
+        logger.info("⚡ Fallback: Gemini Not Configured")
         intent_data = fast_intent
         GEMINI_AVAILABLE_FOR_REQUEST = False
     else:
         # 키워드에 걸리지 않는 복잡한 문장이나 일상 대화만 Gemini 사용
-        print("🤖 Engine: Gemini Intent Analysis")
+        logger.info("🤖 Engine: Gemini Intent Analysis")
         # Gemini 호출 시 타임아웃을 2.5초로 줄여 안전성 확보
         intent_data = await analyze_intent_with_gemini(
             utterance, conversation_history
@@ -985,7 +998,9 @@ async def handle_recommendation_logic(
     intent = intent_data.get("intent", "recommend")
     casual_type = intent_data.get("casual_type")
 
-    print(f"User: {user_id} | Intent: {intent} | Utterance: '{utterance}'")
+    logger.info(
+        f"User: {user_id} | Intent: {intent} | Weather: {actual_weather} | Mood: {intent_data.get('mood')} | Utterance: '{utterance}'"
+    )
 
     # 5. 의도별 처리 (기존 로직과 동일하나 요약)
     response_text = ""
@@ -1220,7 +1235,7 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
         r.refresh_data()
         intent_data = analyze_intent_fallback(utterance)
         intent = intent_data.get("intent")
-        print(f"🚨 Fallback Logic | Utterance: '{utterance}' | Detected Intent: '{intent}'")
+        logger.warning(f"🚨 Fallback Logic | Utterance: '{utterance}' | Detected Intent: '{intent}'")
         
         if weather: intent_data["weather"] = weather
         
@@ -1243,13 +1258,13 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
                     
                     # [DEFENSIVE] 2001 에러 방지 (길이/내용 체크) - 카카오 제한 준수
                     if not final_text or len(final_text) > 400:
-                        print(f"⚠️ Text too long or empty ({len(final_text)}): {final_text[:50]}...")
+                        logger.warning(f"⚠️ Text too long or empty ({len(final_text)}): {final_text[:50]}...")
                         final_text = f"'{last_rec.get('name')}' 가보시면 절대 후회 안 하실 거예요! 믿고 드셔보세요. 👍"
                         
                     return get_final_kakao_response(final_text)
                     
                 except Exception as ex:
-                    print(f"🚨 Explain Gen Failed: {ex}")
+                    logger.warning(f"🚨 Explain Gen Failed: {ex}")
                     return get_final_kakao_response(f"'{last_rec.get('name')}' 정말 맛있는 곳이라 추천드렸어요! 😊")
             else:
                 # 추천 내역이 없으면 자연스럽게 추천으로 유도
