@@ -747,6 +747,7 @@ async def handle_recommendation_logic(
         if requested_meal_label and requested_meal_label != current_meal_label
         else ""
     )
+    recommended_in_response = False
     
     # 0.1 웰컴/도움말/단답형 즉시 반환 (0.01초 내 응답 목표)
     if is_welcome_event:
@@ -993,9 +994,13 @@ async def handle_recommendation_logic(
 
         if should_recommend:
             choice = r.recommend( # Use global r
-                weather=actual_weather, mood=intent_data.get("mood")
+                weather=actual_weather,
+                mood=intent_data.get("mood"),
+                meal_label=meal_label,
+                is_late_evening=is_late_evening,
             )
             if choice:
+                recommended_in_response = True
                 session_manager.set_last_recommendation(user_id, choice)
                 menu_response = (
                     await generate_response_with_gemini(
@@ -1025,8 +1030,11 @@ async def handle_recommendation_logic(
             mood=intent_data.get("mood"),
             excluded_menus=excluded,
             tag_filters=intent_data.get("tag_filters", []),
+            meal_label=meal_label,
+            is_late_evening=is_late_evening,
         )
         if choice:
+            recommended_in_response = True
             session_manager.set_last_recommendation(user_id, choice)
             menu_res = (
                 await generate_response_with_gemini(
@@ -1078,9 +1086,12 @@ async def handle_recommendation_logic(
             cuisine_filters=intent_data.get("cuisine_filters"),
             mood=intent_data.get("mood"),
             tag_filters=intent_data.get("tag_filters", []),
+            meal_label=meal_label,
+            is_late_evening=is_late_evening,
         )
 
         if choice:
+            recommended_in_response = True
             session_manager.set_last_recommendation(user_id, choice)
             if GEMINI_AVAILABLE_FOR_REQUEST:
                 response_text = await generate_response_with_gemini(
@@ -1107,6 +1118,9 @@ async def handle_recommendation_logic(
             elif retry_count >= 6:
                 retry_prefix = "😭 저기요... 저도 이제 힘들어요... 그냥 아까 추천드린 것 중에 하나 드시죠! 마지막이에요!\n\n"
     
+    if mismatch_notice and recommended_in_response:
+        response_text = f"{mismatch_notice}\n\n{response_text}"
+
     final_text = f"{retry_prefix}{response_text}"
 
     # 7. Kakao Response 구성
@@ -1174,6 +1188,11 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
     """타임아웃 또는 서버 에러 시 즉시 반환할 안전 응답 (글로벌 r 활용하여 초고속 생성)"""
     import random
     intent_data = {} # [FIX] UnboundLocalError 방지
+    time_ctx = get_time_context(utterance)
+    current_meal_label = time_ctx["current_label"] or "점심"
+    requested_meal_label = time_ctx["requested_label"]
+    is_late_evening = bool(time_ctx["is_late_evening"])
+    meal_label = requested_meal_label or current_meal_label
 
     try:
         r.refresh_data()
@@ -1219,7 +1238,9 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
             weather=intent_data.get("weather"),
             cuisine_filters=intent_data.get("cuisine_filters"),
             mood=intent_data.get("mood"),
-            tag_filters=intent_data.get("tag_filters")
+            tag_filters=intent_data.get("tag_filters"),
+            meal_label=meal_label,
+            is_late_evening=is_late_evening,
         )
     except:
         fallback_menu = None
@@ -1228,7 +1249,6 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
         fallback_menu = random.choice(r.menus) if r.menus else {"name": "회사 근처 맛집", "area": "근처"}
 
     # [핵심] 조합형 엔진으로 멘트 다양화
-    meal_label = get_meal_label()
     message = build_varied_recommendation(fallback_menu, intent_data, meal_label=meal_label)
     
     # [FIX] 세션에 추천 이력을 저장해야 "이유는?" 질문에 대답할 수 있음

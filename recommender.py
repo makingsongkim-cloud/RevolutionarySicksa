@@ -149,6 +149,8 @@ class LunchRecommender:
         4. 날씨 가중치 부여
         5. 기분(Mood) 가중치 부여
         """
+        meal_label = kwargs.get("meal_label")
+        is_late_evening = kwargs.get("is_late_evening", False)
         # 데이터 갱신 확인
         if not hasattr(self, 'menus'):
             self.refresh_data()
@@ -258,6 +260,19 @@ class LunchRecommender:
                 # 딱히 가리는 거 없음, 가벼운 거 살짝 우대?
                 if TAG_LIGHT in tags:
                     score += 5
+
+            # 식사 시간대 반영
+            if meal_label == "아침":
+                if TAG_LIGHT in tags:
+                    score += 12
+                if TAG_HEAVY in tags:
+                    score -= 10
+            elif meal_label == "저녁" and is_late_evening:
+                # 늦은 저녁은 가벼운 메뉴 우대
+                if TAG_LIGHT in tags:
+                    score += 12
+                if TAG_HEAVY in tags:
+                    score -= 10
 
             # 기분 반영 (보통, 화남, 행복, 우울, 피곤)
             if mood == "화남": # 매운거, 국물, 고기/밥 강추
