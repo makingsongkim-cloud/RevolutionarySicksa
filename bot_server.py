@@ -596,6 +596,10 @@ async def generate_response_with_gemini(
     meal_label: str = "점심",
 ) -> str:
     """추천 멘트 생성 (Short Prompt)"""
+    # Cooldown 체크 - Rate limit 중이면 즉시 fallback
+    if _gemini_in_cooldown():
+        return generate_response_message(choice, intent_data, meal_label=meal_label)
+    
     name = choice['name']
     category = choice.get('category', '')
     area = choice.get('area', '')
