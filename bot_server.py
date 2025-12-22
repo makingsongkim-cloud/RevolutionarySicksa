@@ -258,6 +258,14 @@ def get_time_context(utterance: str) -> Dict[str, Optional[str]]:
         "is_late_evening": is_late_evening,
     }
 
+
+def contains_explain_keyword(utterance: str) -> bool:
+    """이유/왜 질문 여부를 간단히 판단합니다."""
+    if not utterance:
+        return False
+    text = utterance.lower()
+    return any(k in text for k in ["왜", "이유", "why", "어째서", "이유는"])
+
 async def analyze_intent_with_gemini(utterance: str, conversation_history: List[Dict]) -> Dict[str, Any]:
     """Gemini API를 사용하여 사용자 의도를 분석합니다. (Short Prompt + Strict Config)"""
     if _gemini_in_cooldown():
@@ -831,7 +839,7 @@ async def handle_recommendation_logic(
     elif is_help_request:
         logger.info("⚡ Ultra Fast Track: Help Request")
         return get_help_response()
-    elif is_short_casual:
+    elif is_short_casual and fast_intent.get("intent") != "explain":
         logger.info(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
         return get_final_kakao_response(
             generate_casual_response_fallback("chitchat", user_id, meal_label=meal_label)
@@ -1038,6 +1046,11 @@ async def handle_recommendation_logic(
 
     intent = intent_data.get("intent", "recommend")
     casual_type = intent_data.get("casual_type")
+
+    # "왜/이유" 질문은 help보다 explain을 우선
+    if contains_explain_keyword(utterance):
+        intent = "explain"
+        intent_data["intent"] = "explain"
 
     logger.info(
         f"User: {user_id} | Intent: {intent} | Weather: {actual_weather} | Mood: {intent_data.get('mood')} | Utterance: '{utterance}'"
