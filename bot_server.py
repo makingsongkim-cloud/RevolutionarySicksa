@@ -48,9 +48,9 @@ async def root():
     return {"status": "ok", "message": "DDMC Lunch Bot Server is running!"}
 
 # Gemini API 설정
-    # [Emergency] Force Local Mode due to Quota Limit
-    GEMINI_AVAILABLE = False
-    logger.warning("⚠️  Gemini API 강제 비활성화 (Quota Limit). 로컬 모드로 작동합니다.")
+# [Emergency] Force Local Mode due to Quota Limit
+GEMINI_AVAILABLE = False
+logger.warning("⚠️  Gemini API 강제 비활성화 (Quota Limit). 로컬 모드로 작동합니다.")
     
     # try:
     #     import google.generativeai as genai
