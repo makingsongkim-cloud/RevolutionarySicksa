@@ -48,51 +48,55 @@ async def root():
     return {"status": "ok", "message": "DDMC Lunch Bot Server is running!"}
 
 # Gemini API 설정
-try:
-    import google.generativeai as genai
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    if GEMINI_API_KEY:
-        from google.generativeai.types import HarmCategory, HarmBlockThreshold
-
-        genai.configure(api_key=GEMINI_API_KEY)
-        
-        # 안전 설정 (필터링 방지)
-        safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        }
-        
-        # Generation Configs
-        INTENT_CONFIG = {
-            "temperature": 0.1,
-            "max_output_tokens": 100,
-            "top_p": 0.8,
-            "top_k": 40
-        }
-        
-        RESPONSE_CONFIG = {
-            "temperature": 0.85,
-            "max_output_tokens": 200,
-            "top_p": 0.8,
-            "top_k": 40
-        }
-
-        # 기본 모델 (Response용)
-        gemini_model = genai.GenerativeModel('gemini-2.0-flash-lite', safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
-        
-        # Intent 분석용 모델
-        intent_model = genai.GenerativeModel('gemini-2.0-flash-lite', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
-        
-        GEMINI_AVAILABLE = True
-        logger.info("✅ Gemini API 연동 성공!")
-    else:
-        GEMINI_AVAILABLE = False
-        logger.warning("⚠️  GEMINI_API_KEY가 설정되지 않았습니다. 키워드 매칭 방식으로 작동합니다.")
-except Exception as e:
+    # [Emergency] Force Local Mode due to Quota Limit
     GEMINI_AVAILABLE = False
-    logger.warning(f"⚠️  Gemini API 초기화 실패: {e}. 키워드 매칭 방식으로 작동합니다.")
+    logger.warning("⚠️  Gemini API 강제 비활성화 (Quota Limit). 로컬 모드로 작동합니다.")
+    
+    # try:
+    #     import google.generativeai as genai
+    #     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    #     if GEMINI_API_KEY:
+    #         from google.generativeai.types import HarmCategory, HarmBlockThreshold
+    # 
+    #         genai.configure(api_key=GEMINI_API_KEY)
+    #         
+    #         # 안전 설정 (필터링 방지)
+    #         safety_settings = {
+    #             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+    #             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+    #             HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+    #             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    #         }
+    #         
+    #         # Generation Configs
+    #         INTENT_CONFIG = {
+    #             "temperature": 0.1,
+    #             "max_output_tokens": 100,
+    #             "top_p": 0.8,
+    #             "top_k": 40
+    #         }
+    #         
+    #         RESPONSE_CONFIG = {
+    #             "temperature": 0.85,
+    #             "max_output_tokens": 200,
+    #             "top_p": 0.8,
+    #             "top_k": 40
+    #         }
+    # 
+    #         # 기본 모델 (Response용)
+    #         gemini_model = genai.GenerativeModel('gemini-2.0-flash-lite', safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
+    #         
+    #         # Intent 분석용 모델
+    #         intent_model = genai.GenerativeModel('gemini-2.0-flash-lite', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
+    #         
+    #         GEMINI_AVAILABLE = True
+    #         logger.info("✅ Gemini API 연동 성공!")
+    #     else:
+    #         GEMINI_AVAILABLE = False
+    #         logger.warning("⚠️  GEMINI_API_KEY가 설정되지 않았습니다. 키워드 매칭 방식으로 작동합니다.")
+    # except Exception as e:
+    #     GEMINI_AVAILABLE = False
+    #     logger.warning(f"⚠️  Gemini API 초기화 실패: {e}. 키워드 매칭 방식으로 작동합니다.")
 
 # 키워드 매핑 딕셔너리 (Fallback용)
 CUISINE_KEYWORDS = {
