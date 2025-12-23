@@ -823,9 +823,15 @@ async def handle_recommendation_logic(
     # [ULTRA FAST TRACK] 0. 로컬 의도 분석 최우선 실행
     # 날씨, 세션, 레이트 리밋 등 무거운 작업 전에 먼저 판단합니다.
     fast_intent = analyze_intent_fallback(utterance)
+    
+    # [Defensive] "왜"/"이유"는 무조건 설명으로 고정 (Help 오인식 방지)
+    if "왜" in utterance or "이유" in utterance:
+        fast_intent["intent"] = "explain"
+        
     is_help_request = fast_intent.get("intent") == "help"
     is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
     is_short_casual = len(utterance.strip()) <= 2
+    has_random_keyword = any(k in utterance for k in ["랜덤", "랜덤추천", "랜덤 추천"])
     time_ctx = get_time_context(utterance)
     current_meal_label = time_ctx["current_label"] or "점심"
     requested_meal_label = time_ctx["requested_label"]
@@ -848,7 +854,7 @@ async def handle_recommendation_logic(
     elif is_help_request:
         logger.info("⚡ Ultra Fast Track: Help Request")
         return get_help_response()
-    elif is_short_casual and fast_intent.get("intent") != "explain":
+    elif is_short_casual and fast_intent.get("intent") != "explain" and not has_random_keyword:
         logger.info(f"⚡ Ultra Fast Track: Short Casual ({utterance})")
         return get_final_kakao_response(
             generate_casual_response_fallback("chitchat", user_id, meal_label=meal_label)
