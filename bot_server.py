@@ -8,6 +8,7 @@ import random
 import asyncio
 import time
 import logging
+from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 from session_manager import session_manager
 from rate_limiter import rate_limiter
@@ -26,15 +27,19 @@ load_dotenv()
 
 # 기본 로깅 설정 (파일 + 콘솔)
 LOG_PATH = os.path.join(os.path.dirname(__file__), "bot.log")
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_PATH, encoding="utf-8"),
-        logging.StreamHandler(),
-    ],
-)
 logger = logging.getLogger("lunch_bot")
+logger.setLevel(logging.INFO)
+logger.handlers.clear()
+
+file_handler = RotatingFileHandler(
+    LOG_PATH, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+)
+console_handler = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 app = FastAPI()
 
@@ -75,10 +80,10 @@ try:
         }
 
         # 기본 모델 (Response용)
-        gemini_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
+        gemini_model = genai.GenerativeModel('gemini-1.5-flash', safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
         
         # Intent 분석용 모델
-        intent_model = genai.GenerativeModel('gemini-2.0-flash', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
+        intent_model = genai.GenerativeModel('gemini-1.5-flash', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
         
         GEMINI_AVAILABLE = True
         logger.info("✅ Gemini API 연동 성공!")
