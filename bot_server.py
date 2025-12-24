@@ -660,7 +660,8 @@ async def generate_response_with_gemini(
     )
     if response_text:
         return prefix + response_text
-    return prefix + generate_response_message(choice, intent_data)
+    # generate_response_message 내부에서 이미 prefix(emotion_prefix)를 처리하므로 여기서는 넘기지 않음
+    return generate_response_message(choice, intent_data, meal_label=meal_label)
 
 
 def generate_response_message(choice: dict, intent_data: Dict, meal_label: str = "점심") -> str:
@@ -789,12 +790,14 @@ def generate_response_message(choice: dict, intent_data: Dict, meal_label: str =
                 selected_prefix = ""
 
     message = f"{emotion_prefix}{selected_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}{rain_tip}"
-    # 연속 중복 라인 제거
-    lines = message.splitlines()
+    
+    # [FIX] 연속 중복 라인 제거 및 공백 정리
+    lines = [line.strip() for line in message.splitlines() if line.strip()]
     deduped = []
     for line in lines:
         if not deduped or line != deduped[-1]:
             deduped.append(line)
+    
     return "\n".join(deduped)
 
 
@@ -839,15 +842,26 @@ async def handle_recommendation_logic(
     total_start = start_time
     
     # [ULTRA FAST TRACK] 0. 로컬 의도 분석 최우선 실행
-    # 날씨, 세션, 레이트 리밋 등 무거운 작업 전에 먼저 판단합니다.
+    # 날씨, 세션, 레이트    # 2. 의도 분석 (Ultra Fast Track)
+    start_fast = time.time()
     fast_intent = analyze_intent_fallback(utterance)
-    
-    # [Defensive] "왜"/"이유"는 무조건 설명으로 고정 (Help 오인식 방지)
-    if "왜" in utterance or "이유" in utterance:
-        fast_intent["intent"] = "explain"
-        
     is_help_request = fast_intent.get("intent") == "help"
-    is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
+    logger.info(f"⏱️ analyze_intent_fallback: {time.time() - start_fast:.4f}s")
+    
+    # [DEFENSIVE] '왜', '이유' 키워드 강제 고전
+    if any(word in utterance for word in ["왜", "이유"]):
+        fast_intent["intent"] = "explain"
+        is_help_request = False
+
+    if is_help_request:
+        logger.info("⚡ Ultra Fast Track: Help Request")
+        return get_help_response()
+
+    # 3. 날씨 정보 가져오기 (비동기 병렬)
+    start_weather = time.time()
+    actual_weather, weather_temp = await get_weather_with_timeout(recommender_instance=r)
+    logger.info(f"⏱️ get_weather_with_timeout: {time.time() - start_weather:.4f}s")
+ in ["웰컴", "welcome", "시작"]
     is_short_casual = len(utterance.strip()) <= 2
     has_random_keyword = any(k in utterance for k in ["랜덤", "랜덤추천", "랜덤 추천"])
     time_ctx = get_time_context(utterance)
