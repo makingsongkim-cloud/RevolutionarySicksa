@@ -14,14 +14,20 @@ if %errorlevel% equ 0 (
 timeout /t 2 /nobreak >nul
 echo.
 
-echo [2/3] Git Pull 실행 중...
-git pull
+echo [2/3] Git Fetch/Reset 실행 중...
+git fetch origin
 if %errorlevel% neq 0 (
-    echo Git Pull 실패! 에러를 확인하세요.
+    echo Git Fetch 실패! 에러를 확인하세요.
     pause
     exit /b 1
 )
-echo Git Pull 완료!
+git reset --hard origin/main
+if %errorlevel% neq 0 (
+    echo Git Reset 실패! 에러를 확인하세요.
+    pause
+    exit /b 1
+)
+echo Git Reset 완료! (origin/main)
 echo.
 
 echo [3/3] 봇 서버 시작 중...

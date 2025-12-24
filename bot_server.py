@@ -48,55 +48,62 @@ async def root():
     return {"status": "ok", "message": "DDMC Lunch Bot Server is running!"}
 
 # Gemini API 설정
-# [Emergency] Force Local Mode due to Quota Limit
-GEMINI_AVAILABLE = False
-logger.warning("⚠️  Gemini API 강제 비활성화 (Quota Limit). 로컬 모드로 작동합니다.")
-    
-    # try:
-    #     import google.generativeai as genai
-    #     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    #     if GEMINI_API_KEY:
-    #         from google.generativeai.types import HarmCategory, HarmBlockThreshold
-    # 
-    #         genai.configure(api_key=GEMINI_API_KEY)
-    #         
-    #         # 안전 설정 (필터링 방지)
-    #         safety_settings = {
-    #             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-    #             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-    #             HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-    #             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-    #         }
-    #         
-    #         # Generation Configs
-    #         INTENT_CONFIG = {
-    #             "temperature": 0.1,
-    #             "max_output_tokens": 100,
-    #             "top_p": 0.8,
-    #             "top_k": 40
-    #         }
-    #         
-    #         RESPONSE_CONFIG = {
-    #             "temperature": 0.85,
-    #             "max_output_tokens": 200,
-    #             "top_p": 0.8,
-    #             "top_k": 40
-    #         }
-    # 
-    #         # 기본 모델 (Response용)
-    #         gemini_model = genai.GenerativeModel('gemini-2.0-flash-lite', safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
-    #         
-    #         # Intent 분석용 모델
-    #         intent_model = genai.GenerativeModel('gemini-2.0-flash-lite', safety_settings=safety_settings, generation_config=INTENT_CONFIG)
-    #         
-    #         GEMINI_AVAILABLE = True
-    #         logger.info("✅ Gemini API 연동 성공!")
-    #     else:
-    #         GEMINI_AVAILABLE = False
-    #         logger.warning("⚠️  GEMINI_API_KEY가 설정되지 않았습니다. 키워드 매칭 방식으로 작동합니다.")
-    # except Exception as e:
-    #     GEMINI_AVAILABLE = False
-    #     logger.warning(f"⚠️  Gemini API 초기화 실패: {e}. 키워드 매칭 방식으로 작동합니다.")
+GEMINI_FORCE_LOCAL = os.getenv("GEMINI_FORCE_LOCAL", "").lower() in ("1", "true", "yes", "y")
+if GEMINI_FORCE_LOCAL:
+    GEMINI_AVAILABLE = False
+    logger.warning("⚠️  Gemini API 강제 비활성화 (GEMINI_FORCE_LOCAL). 로컬 모드로 작동합니다.")
+else:
+    try:
+        import google.generativeai as genai
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        if GEMINI_API_KEY:
+            from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
+            genai.configure(api_key=GEMINI_API_KEY)
+
+            # 안전 설정 (필터링 방지)
+            safety_settings = {
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+
+            # Generation Configs
+            INTENT_CONFIG = {
+                "temperature": 0.1,
+                "max_output_tokens": 100,
+                "top_p": 0.8,
+                "top_k": 40,
+            }
+
+            RESPONSE_CONFIG = {
+                "temperature": 0.85,
+                "max_output_tokens": 200,
+                "top_p": 0.8,
+                "top_k": 40,
+            }
+
+            model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+
+            # 기본 모델 (Response용)
+            gemini_model = genai.GenerativeModel(
+                model_name, safety_settings=safety_settings, generation_config=RESPONSE_CONFIG
+            )
+
+            # Intent 분석용 모델
+            intent_model = genai.GenerativeModel(
+                model_name, safety_settings=safety_settings, generation_config=INTENT_CONFIG
+            )
+
+            GEMINI_AVAILABLE = True
+            logger.info(f"✅ Gemini API 연동 성공! ({model_name})")
+        else:
+            GEMINI_AVAILABLE = False
+            logger.warning("⚠️  GEMINI_API_KEY가 설정되지 않았습니다. 키워드 매칭 방식으로 작동합니다.")
+    except Exception as e:
+        GEMINI_AVAILABLE = False
+        logger.warning(f"⚠️  Gemini API 초기화 실패: {e}. 키워드 매칭 방식으로 작동합니다.")
 
 # 키워드 매핑 딕셔너리 (Fallback용)
 CUISINE_KEYWORDS = {
@@ -222,18 +229,20 @@ def format_history(conversation_history: List[Dict], limit: int = 2) -> str:
         for h in conversation_history[-limit:]
     ])
 def get_meal_label(now: Optional[datetime] = None) -> str:
-    """현재 시간 기준 추천 식사 라벨 반환. 회사 식사 시간 기준."""
+    """현재 시간 기준 추천 식사 라벨 반환."""
     current = now or datetime.now()
     hour = current.hour
+    # 10시~10:59: 아침
+    if 10 <= hour < 11:
+        return "아침"
     # 11시~18시: 점심
     if 11 <= hour < 18:
         return "점심"
     # 18시~20시: 저녁
-    elif 18 <= hour < 20:
+    if 18 <= hour < 20:
         return "저녁"
-    # 그 외 시간: 기본값 "점심"
-    else:
-        return "점심"
+    # 기타 시간: 아침(10시 이전) / 저녁(20시 이후)
+    return "아침" if hour < 10 else "저녁"
 
 
 def get_requested_meal_label(utterance: str) -> Optional[str]:
