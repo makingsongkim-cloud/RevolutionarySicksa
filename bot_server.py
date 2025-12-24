@@ -841,14 +841,13 @@ async def handle_recommendation_logic(
     """메인 추천 로직 핸들러 (입력 분석 -> 필터링 -> 선택 -> 응답 생성)"""
     total_start = start_time
     
-    # [ULTRA FAST TRACK] 0. 로컬 의도 분석 최우선 실행
-    # 날씨, 세션, 레이트    # 2. 의도 분석 (Ultra Fast Track)
+    # [ULTRA FAST TRACK] 2. 의도 분석 (Ultra Fast Track)
     start_fast = time.time()
     fast_intent = analyze_intent_fallback(utterance)
     is_help_request = fast_intent.get("intent") == "help"
     logger.info(f"⏱️ analyze_intent_fallback: {time.time() - start_fast:.4f}s")
     
-    # [DEFENSIVE] '왜', '이유' 키워드 강제 고전
+    # [DEFENSIVE] '왜', '이유' 키워드 강제 고정
     if any(word in utterance for word in ["왜", "이유"]):
         fast_intent["intent"] = "explain"
         is_help_request = False
@@ -861,7 +860,8 @@ async def handle_recommendation_logic(
     start_weather = time.time()
     actual_weather, weather_temp = await get_weather_with_timeout(recommender_instance=r)
     logger.info(f"⏱️ get_weather_with_timeout: {time.time() - start_weather:.4f}s")
- in ["웰컴", "welcome", "시작"]
+
+    is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
     is_short_casual = len(utterance.strip()) <= 2
     has_random_keyword = any(k in utterance for k in ["랜덤", "랜덤추천", "랜덤 추천"])
     time_ctx = get_time_context(utterance)
