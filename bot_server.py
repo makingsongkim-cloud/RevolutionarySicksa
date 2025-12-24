@@ -856,19 +856,17 @@ async def handle_recommendation_logic(
         logger.info("⚡ Ultra Fast Track: Help Request")
         return get_help_response()
 
-    # 3. 날씨 정보 가져오기 (비동기 병렬)
-    start_weather = time.time()
-    actual_weather, weather_temp = await get_weather_with_timeout(recommender_instance=r)
-    logger.info(f"⏱️ get_weather_with_timeout: {time.time() - start_weather:.4f}s")
-
+    # 3. 기초 정보 및 인텐트 임시 설정
     is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
     is_short_casual = len(utterance.strip()) <= 2
     has_random_keyword = any(k in utterance for k in ["랜덤", "랜덤추천", "랜덤 추천"])
+    
     time_ctx = get_time_context(utterance)
     current_meal_label = time_ctx["current_label"] or "점심"
     requested_meal_label = time_ctx["requested_label"]
     is_late_evening = bool(time_ctx["is_late_evening"])
     meal_label = requested_meal_label or current_meal_label
+    
     mismatch_notice = (
         f"지금은 {current_meal_label} 시간인데, {meal_label}으로 추천해드릴까요? 😊"
         if requested_meal_label and requested_meal_label != current_meal_label
@@ -1391,7 +1389,7 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
     
     # [FIX] 세션에 추천 이력을 저장해야 "이유는?" 질문에 대답할 수 있음
     try:
-        r.history_mgr.save_history(user_id, fallback_menu['name']) # 장기 기억 (중복 방지)
+        r.history_mgr.save_record(fallback_menu['name'], fallback_menu.get('area'), fallback_menu.get('category'), user=user_id) # 장기 기억 (중복 방지)
         session_manager.set_last_recommendation(user_id, fallback_menu) # 단기 기억 (문맥 대화)
     except:
         pass
