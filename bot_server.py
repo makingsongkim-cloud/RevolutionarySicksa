@@ -777,17 +777,25 @@ def generate_response_message(choice: dict, intent_data: Dict, meal_label: str =
         rain_tip = "\n\n💡 **Tip**: 비가 오면 실내가 평소보다 붐빌 수 있으니 조금 더 서둘러 가 보세요! 🏃‍♂️"
     
     selected_prefix = random.choice(prefixes) if prefixes else ""
+    cleaned_emotion = emotion_prefix.strip() if emotion_prefix else ""
+    cleaned_selected = selected_prefix.strip() if selected_prefix else ""
+    if cleaned_emotion and cleaned_selected:
+        # 동일/유사 문구면 중복 제거
+        if cleaned_emotion == cleaned_selected or cleaned_selected in cleaned_emotion:
+            selected_prefix = ""
+        else:
+            emotion_keywords = ["화", "풀", "맛있는", "스트레스", "기분", "우울", "피곤", "행복"]
+            if any(kw in cleaned_emotion and kw in cleaned_selected for kw in emotion_keywords):
+                selected_prefix = ""
+
     message = f"{emotion_prefix}{selected_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}{rain_tip}"
-    
-    # 반복 문장 제거 (emotion_prefix와 selected_prefix 중복 방지)
-    # emotion_prefix가 이미 감정 표현을 포함하고 있으면 selected_prefix는 스킵
-    if emotion_prefix and selected_prefix:
-        # 핵심 키워드가 겹치면 중복으로 간주
-        emotion_keywords = ["화", "풀", "맛있는", "스트레스", "기분", "우울", "피곤", "행복"]
-        if any(kw in emotion_prefix and kw in selected_prefix for kw in emotion_keywords):
-            message = f"{emotion_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}{rain_tip}"
-    
-    return message
+    # 연속 중복 라인 제거
+    lines = message.splitlines()
+    deduped = []
+    for line in lines:
+        if not deduped or line != deduped[-1]:
+            deduped.append(line)
+    return "\n".join(deduped)
 
 
 @app.post("/api/lunch")
