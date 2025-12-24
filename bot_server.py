@@ -345,7 +345,7 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
     casual_type = "chitchat"
     
     # 일상 대화 패턴 (명확한 인사/감사 등)
-    if any(word in utterance_lower for word in ["안녕", "하이", "hello", "hi"]):
+    if any(word in utterance_lower for word in ["안녕", "안녕하세요", "하이", "ㅎㅇ", "hello", "hi", "헬로", "헬로우", "반가", "반가워", "여보세요"]):
         intent = "casual"
         casual_type = "greeting"
     elif any(word in utterance_lower for word in ["고마", "감사", "thanks", "thank"]):
@@ -512,8 +512,9 @@ async def generate_casual_response_with_gemini(
 가이드:
 1. 친구처럼 밝고 공감하는 말투 (이모지 사용)
 2. 사용자의 말에 맞춰 자연스럽게 대답 (억지로 점심 얘기 꺼내지 말 것)
-3. 만약 사용자가 배고파하거나 점심 맥락일 때만 메뉴 추천 유도
-4. 1-2문장으로 짧게
+3. 인사인 경우에는 인사하고 메뉴 추천 받을지 질문
+4. 만약 사용자가 배고파하거나 점심 맥락일 때만 메뉴 추천 유도
+5. 1-2문장으로 짧게
 
 응답:"""
     
@@ -530,7 +531,7 @@ def generate_casual_response_fallback(casual_type: str, user_id: str = "Master",
     일상 대화 기본 응답 (Fallback)
     """
     if casual_type == "greeting":
-        return f"안녕하세요! 😊 {meal_label} 메뉴 고민되시나요? 추천해드릴게요!"
+        return f"안녕하세요! 😊 {meal_label} 추천 받아보실래요?"
     elif casual_type == "thanks":
         return f"천만에요! 맛있게 드세요~ 🍽️ 다음에도 {meal_label} 고민되시면 언제든 불러주세요!"
     else:
