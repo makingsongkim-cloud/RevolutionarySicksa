@@ -185,8 +185,13 @@ def get_josa(word: str, particle_type: str) -> str:
 import asyncio
 INTENT_TIMEOUT_SEC = 1.8
 GENERATION_TIMEOUT_SEC = 1.5
-GEMINI_COOLDOWN_SEC = 60
+
+# [최적화] 지수 백오프 기반 쿨다운 시스템
+GEMINI_INITIAL_COOLDOWN = 30.0 # 초기 쿨다운 30초
+GEMINI_MAX_COOLDOWN = 600.0    # 최대 쿨다운 10분
+GEMINI_BACKOFF_FACTOR = 2.0    # 배수
 GEMINI_COOLDOWN_UNTIL = 0.0
+current_gemini_cooldown_sec = GEMINI_INITIAL_COOLDOWN
 
 
 def _is_rate_limited_error(err: Exception) -> bool:
@@ -199,18 +204,32 @@ def _gemini_in_cooldown() -> bool:
 
 
 def _set_gemini_cooldown() -> None:
-    global GEMINI_COOLDOWN_UNTIL
-    GEMINI_COOLDOWN_UNTIL = time.time() + GEMINI_COOLDOWN_SEC
+    global GEMINI_COOLDOWN_UNTIL, current_gemini_cooldown_sec
+    GEMINI_COOLDOWN_UNTIL = time.time() + current_gemini_cooldown_sec
+    logger.warning(f"⚠️ Gemini 쿨다운 진입: {current_gemini_cooldown_sec:.1f}초 동안 API 호출을 중단합니다.")
+    # 다음번 쿨다운은 더 길게 (최대치까지)
+    current_gemini_cooldown_sec = min(GEMINI_MAX_COOLDOWN, current_gemini_cooldown_sec * GEMINI_BACKOFF_FACTOR)
+
+def _reset_gemini_backoff() -> None:
+    """성공 시 백오프 초기화"""
+    global current_gemini_cooldown_sec
+    if current_gemini_cooldown_sec > GEMINI_INITIAL_COOLDOWN:
+        current_gemini_cooldown_sec = GEMINI_INITIAL_COOLDOWN
+        logger.info("✅ Gemini 백오프가 초기화되었습니다.")
 
 async def run_gemini_with_timeout(model, prompt: str, timeout_sec: float, log_label: str):
     """Execute Gemini call with a strict timeout and return text or None."""
     if _gemini_in_cooldown():
-        logger.warning(f"{log_label} skipped: Gemini in cooldown")
+        remaining = GEMINI_COOLDOWN_UNTIL - time.time()
+        logger.warning(f"{log_label} skipped: Gemini in cooldown ({remaining:.1f}s left)")
         return None
     try:
         # 가급적 자체 비동기 메서드 사용
         response = await asyncio.wait_for(model.generate_content_async(prompt), timeout=timeout_sec)
-        return (response.text or "").strip()
+        result = (response.text or "").strip()
+        if result:
+            _reset_gemini_backoff() # 성공하면 백오프 초기화
+        return result
     except asyncio.TimeoutError:
         logger.warning(f"{log_label} timeout after {timeout_sec}s")
     except Exception as e:
@@ -345,19 +364,19 @@ def analyze_intent_fallback(utterance: str) -> Dict[str, Any]:
     casual_type = "chitchat"
     
     # 일상 대화 패턴 (명확한 인사/감사 등)
-    if any(word in utterance_lower for word in ["안녕", "안녕하세요", "하이", "ㅎㅇ", "hello", "hi", "헬로", "헬로우", "반가", "반가워", "여보세요"]):
+    if any(word in utterance_lower for word in ["안녕", "안녕하세요", "하이", "ㅎㅇ", "hello", "hi", "헬로", "헬로우", "반가", "반가워", "여보세요", "누구", "넌누구", "이름이", "봇이름"]):
         intent = "casual"
         casual_type = "greeting"
-    elif any(word in utterance_lower for word in ["고마", "감사", "thanks", "thank"]):
+    elif any(word in utterance_lower for word in ["고마", "감사", "thanks", "thank", "ㅇㅋ", "알았어", "ㄱㅅ", "ㄳ"]):
         intent = "casual"
         casual_type = "thanks"
-    elif any(word in utterance_lower for word in ["왜", "이유", "why", "어째서", "이유는"]):
+    elif any(word in utterance_lower for word in ["왜", "이유", "why", "어째서", "이유는", "설명해", "왜죠"]):
         # [CRITICAL] 설명 요청은 최우선순위로 처리하고 즉시 반환 (오버라이드 방지)
         return {"intent": "explain", "casual_type": None, "emotion": "neutral", "cuisine_filters": [], "weather": None, "mood": None, "tag_filters": []}
-    elif any(word in utterance_lower for word in ["싫", "별로", "다른", "아니", "no", "패스"]):
+    elif any(word in utterance_lower for word in ["싫", "별로", "다른", "아니", "no", "패스", "바꿔", "말고", "담에", "나중에"]):
         intent = "reject"
     # recommend (명확한 키워드가 있을 때만 추천)
-    elif any(word in utterance_lower for word in ["추천", "메뉴", "밥", "식사", "배고파", "뭐먹지", "골라줘", "아무거나", "랜덤", "알아서", "해봐", "해", "고"]):
+    elif any(word in utterance_lower for word in ["추천", "메뉴", "밥", "식사", "배고파", "뭐먹지", "골라줘", "아무거나", "랜덤", "알아서", "해봐", "해", "고", "배곱", "출출", "허기"]):
         intent = "recommend"
     # accept (짧은 긍정)
     elif any(word in utterance_lower for word in ["응", "ㅇㅇ", "ㅇㅋ", "좋아", "콜", "고고"]):
@@ -660,8 +679,7 @@ async def generate_response_with_gemini(
     )
     if response_text:
         return prefix + response_text
-    # generate_response_message 내부에서 이미 prefix(emotion_prefix)를 처리하므로 여기서는 넘기지 않음
-    return generate_response_message(choice, intent_data, meal_label=meal_label)
+    return prefix + generate_response_message(choice, intent_data)
 
 
 def generate_response_message(choice: dict, intent_data: Dict, meal_label: str = "점심") -> str:
@@ -790,14 +808,12 @@ def generate_response_message(choice: dict, intent_data: Dict, meal_label: str =
                 selected_prefix = ""
 
     message = f"{emotion_prefix}{selected_prefix}추천드립니다: [{name}] 🍜\n\n📍 위치: {area}\n🍽️ 종류: {category}{rain_tip}"
-    
-    # [FIX] 연속 중복 라인 제거 및 공백 정리
-    lines = [line.strip() for line in message.splitlines() if line.strip()]
+    # 연속 중복 라인 제거
+    lines = message.splitlines()
     deduped = []
     for line in lines:
         if not deduped or line != deduped[-1]:
             deduped.append(line)
-    
     return "\n".join(deduped)
 
 
@@ -841,32 +857,23 @@ async def handle_recommendation_logic(
     """메인 추천 로직 핸들러 (입력 분석 -> 필터링 -> 선택 -> 응답 생성)"""
     total_start = start_time
     
-    # [ULTRA FAST TRACK] 2. 의도 분석 (Ultra Fast Track)
-    start_fast = time.time()
+    # [ULTRA FAST TRACK] 0. 로컬 의도 분석 최우선 실행
+    # 날씨, 세션, 레이트 리밋 등 무거운 작업 전에 먼저 판단합니다.
     fast_intent = analyze_intent_fallback(utterance)
-    is_help_request = fast_intent.get("intent") == "help"
-    logger.info(f"⏱️ analyze_intent_fallback: {time.time() - start_fast:.4f}s")
     
-    # [DEFENSIVE] '왜', '이유' 키워드 강제 고정
-    if any(word in utterance for word in ["왜", "이유"]):
+    # [Defensive] "왜"/"이유"는 무조건 설명으로 고정 (Help 오인식 방지)
+    if "왜" in utterance or "이유" in utterance:
         fast_intent["intent"] = "explain"
-        is_help_request = False
-
-    if is_help_request:
-        logger.info("⚡ Ultra Fast Track: Help Request")
-        return get_help_response()
-
-    # 3. 기초 정보 및 인텐트 임시 설정
+        
+    is_help_request = fast_intent.get("intent") == "help"
     is_welcome_event = not utterance.strip() or utterance in ["웰컴", "welcome", "시작"]
     is_short_casual = len(utterance.strip()) <= 2
     has_random_keyword = any(k in utterance for k in ["랜덤", "랜덤추천", "랜덤 추천"])
-    
     time_ctx = get_time_context(utterance)
     current_meal_label = time_ctx["current_label"] or "점심"
     requested_meal_label = time_ctx["requested_label"]
     is_late_evening = bool(time_ctx["is_late_evening"])
     meal_label = requested_meal_label or current_meal_label
-    
     mismatch_notice = (
         f"지금은 {current_meal_label} 시간인데, {meal_label}으로 추천해드릴까요? 😊"
         if requested_meal_label and requested_meal_label != current_meal_label
@@ -1389,7 +1396,7 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
     
     # [FIX] 세션에 추천 이력을 저장해야 "이유는?" 질문에 대답할 수 있음
     try:
-        r.history_mgr.save_record(fallback_menu['name'], fallback_menu.get('area'), fallback_menu.get('category'), user=user_id) # 장기 기억 (중복 방지)
+        r.history_mgr.save_history(user_id, fallback_menu['name']) # 장기 기억 (중복 방지)
         session_manager.set_last_recommendation(user_id, fallback_menu) # 단기 기억 (문맥 대화)
     except:
         pass
