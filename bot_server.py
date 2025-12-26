@@ -178,7 +178,7 @@ def get_josa(word: str, particle_type: str) -> str:
 
 import asyncio
 INTENT_TIMEOUT_SEC = 1.8
-GENERATION_TIMEOUT_SEC = 1.5
+GENERATION_TIMEOUT_SEC = 2.5
 
 # [최적화] 지수 백오프 기반 쿨다운 시스템
 GEMINI_INITIAL_COOLDOWN = 30.0 # 초기 쿨다운 30초
