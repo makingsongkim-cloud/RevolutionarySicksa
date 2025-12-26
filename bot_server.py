@@ -578,38 +578,75 @@ def generate_casual_response_fallback(casual_type: str, user_id: str = "Master",
         return random.choice(messages)
 
 
-def build_emotion_prefix(intent_data: Dict, choice: Optional[Dict] = None) -> str:
-    """감정/기분에 따라 멘트 앞머리 고정."""
+def build_emotion_prefix(intent_data: Dict, choice: Optional[Dict] = None, short_mode: bool = False) -> str:
+    """감정/기분에 따라 멘트 앞머리 고정 (다양화 및 랜덤화)"""
     mood = intent_data.get("mood")
     emotion = intent_data.get("emotion")
     
-    # 메뉴가 '가벼운' 것인지 확인
-    is_light = False
-    if choice and "light" in choice.get("tags", []):
-        is_light = True
+    import random
+
+    # 기분별 다양한 멘트 리스트
+    mood_prefixes = {
+        "화남": [
+            "맛있는 거 먹고 화 풀어요! 🔥",
+            "스트레스는 먹는 걸로 푸는 게 국룰! 🔥",
+            "거지 같은 기분, 맛있는 걸로 세탁해봐요! ✨",
+            "화를 가라앉힐 특급 메뉴 대령입니다! 🚑",
+            "오늘의 마스터님을 위한 치유제입니다! 💊"
+        ],
+        "우울": [
+            "기분 전환엔 맛있는 게 최고! 🌈",
+            "우울함을 날려버릴 기분 좋은 한 끼! 🎈",
+            "마스터님, 맛있는 거 먹고 힘내요! 🍭",
+            "축 처진 마음을 달래줄 힐링 메뉴! 🍀"
+        ],
+        "피곤": [
+            "지친 몸에 활력을 줄 에너지! ⚡",
+            "에너지 채우는 든든한 한 끼! 💪",
+            "고생한 자신에게 주는 맛있는 선물! 🎁",
+            "피로를 싹 날려버릴 보약 한 끼! 💉"
+        ],
+        "행복": [
+            "기분 좋은 날엔 더 맛있는 걸로! 😊",
+            "오늘의 행복을 완성할 맛집 추천! ✨",
+            "즐거운 기분 그대로, 입안도 즐겁게! 🥳",
+            "행복한 기분에 숟가락 하나 더! 🎉"
+        ],
+        "플렉스": [
+            "오늘은 제대로 flex! 💳",
+            "나를 위한 아낌없는 한 끼! 💎",
+            "가장 비싼 맛으로 승부합니다! 🥂"
+        ],
+        "다이어트": [
+            "가볍게 관리하는 날! 🥗",
+            "식단 관리도 맛있게 하세요! 🧘",
+            "죄책감 없는 깔끔한 추천! 🥑"
+        ]
+    }
+
+    selected_prefix = ""
+    if mood in mood_prefixes:
+        selected_prefix = random.choice(mood_prefixes[mood])
+    elif emotion == "negative":
+        selected_prefix = random.choice([
+            "힘든 날엔 든든하게 먹고 기운 내요! 🙏",
+            "마음이 지칠 땐 맛있는 게 약입니다! 🧸"
+        ])
+    elif emotion == "positive":
+        selected_prefix = random.choice([
+            "좋은 기분 이어가요! 😄",
+            "흥겨운 기분에 맛을 더해봐요! 🎵"
+        ])
+
+    if not selected_prefix:
+        return ""
+
+    if short_mode:
+        # AI 응답과 겹치지 않게 '!' 전까지만 사용하거나 아주 짧게 리턴
+        clean_text = selected_prefix.split('!')[0].strip()
+        return f"{clean_text}! "
     
-    if mood == "화남":
-        return "맛있는 거 먹고 화 풀어요! 🔥\n"
-    if mood == "우울":
-        return "기분 전환엔 맛있는 게 최고! 🌈\n"
-    if mood == "피곤":
-        if is_light:
-            return "지친 몸에 부담 없는 에너지! ⚡\n"
-        return "에너지 채우는 든든한 한 끼! 💪\n"
-    if mood == "행복":
-        return "기분 좋은 날엔 맛있는 걸로! 😊\n"
-    if mood == "플렉스":
-        return "오늘은 제대로 flex! 💳\n"
-    if mood == "다이어트":
-        return "가볍게 관리하는 날! 🥗\n"
-    
-    if emotion == "negative":
-        if is_light:
-            return "지친 마음을 달래줄 깔끔한 한 끼! 🙏\n"
-        return "힘든 날엔 든든하게 먹고 기운 내요! 🙏\n"
-    if emotion == "positive":
-        return "좋은 기분 이어가요! 😄\n"
-    return ""
+    return selected_prefix + "\n"
 
 
 async def generate_explanation_with_gemini(utterance: str, last_recommendation: Dict, conversation_history: List[Dict], weather: Optional[str] = None, mood: Optional[str] = None) -> str:
@@ -658,7 +695,7 @@ async def generate_response_with_gemini(
     context = f"상황: {intent_data.get('weather')}, {intent_data.get('mood')}, {intent_data.get('cuisine_filters')}"
     emotion = intent_data.get('emotion', 'neutral')
     tone = "위로하는 톤" if emotion == "negative" else "밝은 톤"
-    prefix = build_emotion_prefix(intent_data)
+    prefix = build_emotion_prefix(intent_data, choice, short_mode=True)
     
     prompt = f"""{meal_label} 추천 멘트 작성 ({tone}):
 사용자: "{utterance}"
@@ -699,8 +736,8 @@ def generate_response_message(choice: dict, intent_data: Dict, meal_label: str =
     mood = intent_data.get('mood')
     emotion = intent_data.get('emotion', 'neutral')
     
-    # 감정/기분 고정 프리픽스
-    emotion_prefix = build_emotion_prefix(intent_data, choice)
+    # 상단 고정 멘트 (감정/기분)
+    emotion_prefix = build_emotion_prefix(intent_data, choice, short_mode=False)
     
     # 상황별 멘트
     import random
