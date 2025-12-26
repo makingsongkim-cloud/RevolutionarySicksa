@@ -47,63 +47,57 @@ app = FastAPI()
 async def root():
     return {"status": "ok", "message": "DDMC Lunch Bot Server is running!"}
 
-# Gemini API 설정
+# Gemini API 설정 (멀티 키 로테이션 지원)
 GEMINI_FORCE_LOCAL = os.getenv("GEMINI_FORCE_LOCAL", "").lower() in ("1", "true", "yes", "y")
-if GEMINI_FORCE_LOCAL:
-    GEMINI_AVAILABLE = False
-    logger.warning("⚠️  Gemini API 강제 비활성화 (GEMINI_FORCE_LOCAL). 로컬 모드로 작동합니다.")
-else:
+API_KEYS = [k.strip() for k in os.getenv("GEMINI_API_KEY", "").split(",") if k.strip()]
+current_key_index = 0
+
+gemini_model = None
+intent_model = None
+GEMINI_AVAILABLE = False
+
+def reconfigure_gemini():
+    global gemini_model, intent_model, GEMINI_AVAILABLE, current_key_index
+    
+    if not API_KEYS:
+        GEMINI_AVAILABLE = False
+        return False
+
     try:
         import google.generativeai as genai
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-        if GEMINI_API_KEY:
-            from google.generativeai.types import HarmCategory, HarmBlockThreshold
+        from google.generativeai.types import HarmCategory, HarmBlockThreshold
+        
+        target_key = API_KEYS[current_key_index]
+        genai.configure(api_key=target_key)
 
-            genai.configure(api_key=GEMINI_API_KEY)
+        safety_settings = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
 
-            # 안전 설정 (필터링 방지)
-            safety_settings = {
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-            }
+        INTENT_CONFIG = {"temperature": 0.1, "max_output_tokens": 100, "top_p": 0.8, "top_k": 40}
+        RESPONSE_CONFIG = {"temperature": 0.85, "max_output_tokens": 200, "top_p": 0.8, "top_k": 40}
+        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
-            # Generation Configs
-            INTENT_CONFIG = {
-                "temperature": 0.1,
-                "max_output_tokens": 100,
-                "top_p": 0.8,
-                "top_k": 40,
-            }
-
-            RESPONSE_CONFIG = {
-                "temperature": 0.85,
-                "max_output_tokens": 200,
-                "top_p": 0.8,
-                "top_k": 40,
-            }
-
-            model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
-
-            # 기본 모델 (Response용)
-            gemini_model = genai.GenerativeModel(
-                model_name, safety_settings=safety_settings, generation_config=RESPONSE_CONFIG
-            )
-
-            # Intent 분석용 모델
-            intent_model = genai.GenerativeModel(
-                model_name, safety_settings=safety_settings, generation_config=INTENT_CONFIG
-            )
-
-            GEMINI_AVAILABLE = True
-            logger.info(f"✅ Gemini API 연동 성공! ({model_name})")
-        else:
-            GEMINI_AVAILABLE = False
-            logger.warning("⚠️  GEMINI_API_KEY가 설정되지 않았습니다. 키워드 매칭 방식으로 작동합니다.")
+        gemini_model = genai.GenerativeModel(model_name, safety_settings=safety_settings, generation_config=RESPONSE_CONFIG)
+        intent_model = genai.GenerativeModel(model_name, safety_settings=safety_settings, generation_config=INTENT_CONFIG)
+        
+        GEMINI_AVAILABLE = True
+        logger.info(f"✅ Gemini API 키 전환 성공! (Key Index: {current_key_index}, Model: {model_name})")
+        return True
     except Exception as e:
-        GEMINI_AVAILABLE = False
-        logger.warning(f"⚠️  Gemini API 초기화 실패: {e}. 키워드 매칭 방식으로 작동합니다.")
+        logger.error(f"❌ Gemini API 재설정 실패 (Index {current_key_index}): {e}")
+        return False
+
+if not GEMINI_FORCE_LOCAL and API_KEYS:
+    reconfigure_gemini()
+else:
+    if GEMINI_FORCE_LOCAL:
+        logger.warning("⚠️ Gemini API 강제 비활성화 모드입니다.")
+    else:
+        logger.warning("⚠️ 등록된 GEMINI_API_KEY가 없습니다.")
 
 # 키워드 매핑 딕셔너리 (Fallback용)
 CUISINE_KEYWORDS = {
@@ -204,10 +198,20 @@ def _gemini_in_cooldown() -> bool:
 
 
 def _set_gemini_cooldown() -> None:
-    global GEMINI_COOLDOWN_UNTIL, current_gemini_cooldown_sec
+    global GEMINI_COOLDOWN_UNTIL, current_gemini_cooldown_sec, current_key_index
+    
+    # [멀티 키] 429 에러 발생 시 즉시 다음 키로 전환 시도
+    if len(API_KEYS) > 1:
+        old_idx = current_key_index
+        current_key_index = (current_key_index + 1) % len(API_KEYS)
+        logger.warning(f"🔄 Rate Limit 감지! 키 전환 시도: Index {old_idx} -> {current_key_index}")
+        if reconfigure_gemini():
+            # 키 전환 성공 시 쿨다운 없이 즉시 재시도 가능하도록 설정 (단, 백오프는 유지하여 안전성 확보)
+            GEMINI_COOLDOWN_UNTIL = 0
+            return
+
     GEMINI_COOLDOWN_UNTIL = time.time() + current_gemini_cooldown_sec
-    logger.warning(f"⚠️ Gemini 쿨다운 진입: {current_gemini_cooldown_sec:.1f}초 동안 API 호출을 중단합니다.")
-    # 다음번 쿨다운은 더 길게 (최대치까지)
+    logger.warning(f"⚠️ 모든 키 한도 초과 또는 단일 키 쿨다운 진입: {current_gemini_cooldown_sec:.1f}초")
     current_gemini_cooldown_sec = min(GEMINI_MAX_COOLDOWN, current_gemini_cooldown_sec * GEMINI_BACKOFF_FACTOR)
 
 def _reset_gemini_backoff() -> None:
