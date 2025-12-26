@@ -683,7 +683,7 @@ async def generate_response_with_gemini(
     )
     if response_text:
         return prefix + response_text
-    return prefix + generate_response_message(choice, intent_data)
+    return generate_response_message(choice, intent_data)
 
 
 def generate_response_message(choice: dict, intent_data: Dict, meal_label: str = "점심") -> str:
