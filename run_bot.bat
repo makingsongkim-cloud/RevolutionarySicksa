@@ -43,7 +43,7 @@ if %errorlevel% neq 0 (
 )
 
 if not exist venv (
-    echo [INFO] 가상환경(venv) 생성 중...
+    echo [INFO] 가상환경[venv] 생성 중...
     %PYTHON_CMD% -m venv venv
 )
 
@@ -65,7 +65,7 @@ echo [%DATE% %TIME%] Starting bot_server.py...
 
 if %errorlevel% neq 0 (
     echo.
-    echo [ERROR] 서버가 예기치 않게 종료되었습니다 (Error Code: %errorlevel%).
+    echo [ERROR] 서버가 예기치 않게 종료되었습니다 [Error Code: %errorlevel%].
 )
 
 echo [%DATE% %TIME%] 5초 후에 자동으로 재시작합니다...
