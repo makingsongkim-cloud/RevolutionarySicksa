@@ -14,7 +14,7 @@ set PYTHON_CMD=python
 where python >nul 2>nul
 if %errorlevel% neq 0 (
     echo [WARNING] 'python' 명령어를 찾지 못했습니다.
-    echo [INFO] 'py' (Python Launcher)를 찾아봅니다...
+    echo [INFO] 'py' [Python Launcher]를 찾아봅니다...
     
     where py >nul 2>nul
     if %errorlevel% equ 0 (
@@ -59,14 +59,16 @@ echo [INFO] Ngrok 터널링 프로그램도 새 창에서 같이 실행합니다
 start "Ngrok Tunnel" run_ngrok.bat
 echo.
 
-
+:server_loop
+echo [%DATE% %TIME%] Starting bot_server.py...
 %PYTHON_CMD% bot_server.py
 
 if %errorlevel% neq 0 (
     echo.
-    echo [CRITICAL ERROR] 서버 실행 중 오류가 발생했습니다!
-    echo 위 에러 메시지를 확인해주세요.
-    pause
+    echo [ERROR] 서버가 예기치 않게 종료되었습니다 (Error Code: %errorlevel%).
 )
 
-pause
+echo [%DATE% %TIME%] 5초 후에 자동으로 재시작합니다...
+echo 중단하려면 이 창을 닫거나 Ctrl+C를 누르세요.
+timeout /t 5 >nul
+goto server_loop
