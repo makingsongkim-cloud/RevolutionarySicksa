@@ -4,13 +4,12 @@ echo 봇 서버 업데이트 및 재시작
 echo ========================================
 echo.
 
-echo [1/3] 봇 서버 프로세스 종료 중...
-taskkill /F /IM python.exe /FI "WINDOWTITLE eq bot_server*" 2>nul
-if %errorlevel% equ 0 (
-    echo 봇 서버가 종료되었습니다.
-) else (
-    echo 실행 중인 봇 서버가 없습니다.
+echo [1/3] 봇 서버 프로세스(포트 8000) 종료 중...
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":8000" ^| find "LISTENING"') do (
+    echo 포트 8000 사용 중인 프로세스(PID: %%a) 종료...
+    taskkill /f /pid %%a >nul 2>&1
 )
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq bot_server*" 2>nul
 timeout /t 2 /nobreak >nul
 echo.
 
