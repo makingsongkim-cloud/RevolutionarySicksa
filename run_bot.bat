@@ -1,58 +1,42 @@
 @echo off
-chcp 65001
+chcp 65001 >nul
 cd /d "%~dp0"
+title DDMC Bot Server Runner
 
-echo [INFO] 점심 추천 봇 서버(Kakao) 실행 준비 중...
+echo ========================================
+echo [INFO] 점심 추천 봇 서버 실행 준비
+echo ========================================
 
-REM 1. 서비스 모드에서 타임아웃 방지를 위해 업데이트를 선택적으로 수행 (기본 생략)
-if "%1"=="--update" (
-    echo [INFO] 최신 코드를 받아옵니다...
-    git pull
-    echo [INFO] 라이브러리 설치 확인 중...
-    pip install -r requirements.txt >nul
-)
-
-REM 2. Python 경로 찾기
+REM 1. Python 감지
 set PYTHON_CMD=python
 where python >nul 2>nul
 if %errorlevel% neq 0 (
     where py >nul 2>nul
     if %errorlevel% equ 0 (
         set PYTHON_CMD=py
-    ) else (
-        if exist "C:\Python312\python.exe" (
-            set PYTHON_CMD="C:\Python312\python.exe"
-        ) else if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
-            set PYTHON_CMD="%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
-        ) else if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
-            set PYTHON_CMD="%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
-        ) else if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
-            set PYTHON_CMD="%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
-        )
     )
 )
 
-REM 3. 가상환경 확인 및 활성화
-if not exist venv (
-    echo [INFO] 가상환경[venv] 생성 중...
-    %PYTHON_CMD% -m venv venv
+REM 2. 가상환경 확인 및 활성화 (있으면)
+if exist venv (
+    echo [INFO] 가상환경(venv) 활성화...
+    call venv\Scripts\activate
 )
-call venv\Scripts\activate
 
+REM 3. 메인 실행 루프
+:loop
 echo.
-echo [INFO] 봇 서버를 실행합니다! (포트: 8000)
-echo [NOTE] 서비스 모드에서는 별도의 창(Ngrok)이 뜨지 않습니다.
-echo [NOTE] Ngrok은 별도의 서비스로 등록하거나 수동 실행을 권장합니다.
+echo [1] 포트 8000 정리 중...
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":8000" ^| find "LISTENING"') do (
+    echo   - 포트 8000 사용 중인 프로세스(PID: %%a) 종료...
+    taskkill /f /pid %%a >nul 2>&1
+)
 
-REM 서비스 모드(세션 0)에서는 창을 띄울 수 없으므로 start 대신 주석 처리하거나 필요 시 백그라운드 실행 고려
-REM start "Ngrok Tunnel" run_ngrok.bat
-
-echo.
-echo [%DATE% %TIME%] Starting bot_server.py...
+echo [2] bot_server.py 실행...
 %PYTHON_CMD% bot_server.py
 
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] 서버가 종료되었습니다 [Error Code: %errorlevel%].
-    REM 서비스 모드에서는 pause를 사용하면 안 됩니다.
-)
+echo.
+echo ⚠️ 서버가 종료되었습니다! (에러 코드를 확인하세요)
+echo 5초 뒤에 재시작합니다... (종료하려면 창을 닫으세요)
+timeout /t 5
+goto loop
