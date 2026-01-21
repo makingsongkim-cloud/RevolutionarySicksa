@@ -7,13 +7,6 @@ echo.
 
 echo [1/3] Git Pull (최신 코드 받기)...
 git pull
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] Git Pull 실패! 인터넷 연결이나 충돌을 확인하세요.
-    echo 일단 무시하고 기존 코드로 실행하시겠습니까? (Y/N)
-    set /p "ALLOW_CONTINUE=> "
-    if /i not "%ALLOW_CONTINUE%"=="y" exit /b 1
-)
 
 echo.
 echo [2/3] Ngrok 터널 실행...
