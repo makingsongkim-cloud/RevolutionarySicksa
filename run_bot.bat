@@ -45,8 +45,8 @@ REM 3. 메인 실행 루프
 :loop
 echo.
 echo [1] 포트 8000 정리 중...
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":8000" ^| find "LISTENING"') do (
-    echo   - 포트 8000 사용 중인 프로세스(PID: %%a) 종료...
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8000.*LISTEN"') do (
+    echo   - PID %%a kill
     taskkill /f /pid %%a >nul 2>&1
 )
 
