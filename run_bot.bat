@@ -7,6 +7,19 @@ echo ========================================
 echo [INFO] 점심 추천 봇 서버 실행 준비
 echo ========================================
 
+REM 0. .env 파일 자동 생성 (없으면)
+if not exist .env (
+    echo [SETUP] .env 파일이 없습니다. 자동 생성 중...
+    (
+        echo GEMINI_API_KEY=AIzaSyBmHyX4eCMjOGfIxwlXYtGE67OyvcbOMfY,AIzaSyCHaEZkJIw9_hVXga8IGqpxnm401DnzvwU,AIzaSyAlflrQ883GL-cWbCJP9J2EA0RGWIEGMNU,AIzaSyCX6sMpC0DOm-7IbQRNg6LoQVtsthBzCPI,AIzaSyDDS2my5kVgsRZBkUVYqA60x7vTGUGMpkk,AIzaSyALRI2OjqDHCxVdqNypUvSfxjTR5kMQaUs
+        echo GEMINI_MODEL=gemini-2.5-flash-lite
+    ) > .env
+    echo [SETUP] .env 파일 생성 완료!
+    echo.
+)
+
+pause
+
 REM 1. Python 감지
 set PYTHON_CMD=python
 where python >nul 2>nul
@@ -14,12 +27,17 @@ if %errorlevel% neq 0 (
     where py >nul 2>nul
     if %errorlevel% equ 0 (
         set PYTHON_CMD=py
+    ) else (
+        echo [ERROR] Python을 찾을 수 없습니다! (python 또는 py 명령어가 필요합니다)
+        echo 설치해주세요: https://www.python.org/downloads/
+        pause
+        exit /b 1
     )
 )
 
 REM 2. 가상환경 확인 및 활성화 (있으면)
 if exist venv (
-    echo [INFO] 가상환경(venv) 활성화...
+    echo [INFO] 가상환경 활성화...
     call venv\Scripts\activate
 )
 
