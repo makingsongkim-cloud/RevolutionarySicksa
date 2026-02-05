@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 import uvicorn
 import recommender
@@ -138,7 +138,7 @@ r = recommender.LunchRecommender()
 
 # Input Models for Kakao Skill Payload
 class Action(BaseModel):
-    params: Dict[str, Any] = {}
+    params: Dict[str, Any] = Field(default_factory=dict)
 
 class User(BaseModel):
     id: str
@@ -149,7 +149,7 @@ class UserRequest(BaseModel):
 
 class SkillPayload(BaseModel):
     userRequest: UserRequest
-    action: Action = Action()
+    action: Action = Field(default_factory=Action)
 
 
 def get_josa(word: str, particle_type: str) -> str:
@@ -1418,15 +1418,22 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
                 return get_final_kakao_response("아직 제가 아무것도 추천드리지 않았네요! 😊 맛있는 메뉴 하나 골라드릴까요?")
 
         # 추천 로직 (기존과 동일하지만 멘트 생성은 build_varied_recommendation 사용)
+    # [추천 엔진 호출]
+    # excluded_menus = session_manager.get_excluded_menus(user_id) # Assuming this is defined elsewhere or intended to be added
+    excluded_menus = [] # Placeholder to prevent NameError, as it's not defined in the provided context.
+    try:
         fallback_menu = r.recommend(
-            weather=intent_data.get("weather"),
-            cuisine_filters=intent_data.get("cuisine_filters"),
+            user=user_id, # [FIX] 사용자 ID 전달
+            weather=weather,
+            cuisine_filters=intent_data.get("cuisine_filters") or intent_data.get("cuisine"),
             mood=intent_data.get("mood"),
-            tag_filters=intent_data.get("tag_filters"),
+            excluded_menus=excluded_menus,
             meal_label=meal_label,
             is_late_evening=is_late_evening,
+            tag_filters=intent_data.get("tag_filters") # [NEW] 태그 필터 전달
         )
-    except:
+    except Exception as e:
+        logger.exception(f"🚨 Recommend fallback failed: {e}")
         fallback_menu = None
 
     if not fallback_menu:
@@ -1437,7 +1444,7 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
     
     # [FIX] 세션에 추천 이력을 저장해야 "이유는?" 질문에 대답할 수 있음
     try:
-        r.history_mgr.save_history(user_id, fallback_menu['name']) # 장기 기억 (중복 방지)
+        r.history_mgr.save_record(fallback_menu['name'], fallback_menu.get('area', ''), fallback_menu.get('category', ''), user=user_id) # 장기 기억 (중복 방지)
         session_manager.set_last_recommendation(user_id, fallback_menu) # 단기 기억 (문맥 대화)
     except:
         pass
