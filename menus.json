@@ -55,29 +55,6 @@
         "cuisine": "일식"
     },
     {
-        "name": "포머이 쌀국수",
-        "area": "회사 지하식당",
-        "tags": [
-            "noodle",
-            "soup",
-            "hot",
-            "light"
-        ],
-        "category": "쌀국수",
-        "cuisine": "기타"
-    },
-    {
-        "name": "나연",
-        "area": "회사 지하식당",
-        "tags": [
-            "rice",
-            "heavy",
-            "hot"
-        ],
-        "category": "한식",
-        "cuisine": "한식"
-    },
-    {
         "name": "함박함박",
         "area": "회사 지하식당",
         "category": "양식",
