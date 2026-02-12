@@ -36,17 +36,8 @@ echo.
 echo [3/4] 기존 프로세스 종료...
 REM Ngrok 및 Bot 프로세스 종료
 taskkill /F /IM ngrok.exe >nul 2>&1
-for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8000.*LISTEN"') do (
-    REM 포트 8000을 사용하는 프로세스의 이름 확인
-    for /f "tokens=1" %%b in ('tasklist /FI "PID eq %%a" /FO LIST 2^>nul ^| findstr "Image Name"') do (
-        set proc_name=%%b
-    )
-    REM 프로세스 이름이 python.exe, python3.exe, 또는 cmd.exe인 경우만 종료
-    if "!proc_name!"=="Image Name:" (
-        echo   - 포트 8000 사용 중인 프로세스(PID %%a) 종료
-        taskkill /F /pid %%a >nul 2>&1
-    )
-)
+taskkill /F /IM python.exe >nul 2>&1
+taskkill /F /IM python3.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 echo.
