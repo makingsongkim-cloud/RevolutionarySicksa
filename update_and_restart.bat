@@ -1,13 +1,32 @@
 @echo off
 chcp 65001 >nul
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
+
 echo ========================================
-echo 봇 서버 업데이트 및 재시작
+echo 봇 서버 업데이트 및 재시작 (Improved)
 echo ========================================
 echo.
 
 echo [1/4] Git Pull (최신 코드 받기)...
-git pull
+REM Git pull 시도 및 에러 체크
+git pull > git_pull_result.txt 2>&1
+type git_pull_result.txt
+
+findstr /C:"error:" git_pull_result.txt >nul
+if %errorlevel% equ 0 (
+    echo.
+    echo ❌ [ERROR] Git Pull 중 오류가 발생했습니다.
+    echo 로컬에서 코드를 직접 수정하셨다면 'git reset --hard'가 필요할 수 있습니다.
+    echo 업데이트를 건너뛰고 재시작하시겠습니까? (Y/N)
+    set /p "CHOICE="
+    if /i "!CHOICE!" neq "Y" (
+        del git_pull_result.txt
+        pause
+        exit /b 1
+    )
+)
+del git_pull_result.txt
 
 echo.
 echo [1.5/4] 메뉴 파일 동기화 (%USERPROFILE%\.lunch_siksa\menus.json)...
@@ -33,11 +52,14 @@ if not exist .env (
 )
 
 echo.
-echo [3/4] 기존 프로세스 종료...
+echo [3/4] 기존 프로세스 강제 종료...
 REM Ngrok 및 Bot 프로세스 종료
 taskkill /F /IM ngrok.exe >nul 2>&1
 taskkill /F /IM python.exe >nul 2>&1
 taskkill /F /IM python3.exe >nul 2>&1
+
+REM "DDMC Bot Server" 타이틀을 가진 배치 파일 창 종료 (루프 탈출용)
+taskkill /F /FI "WINDOWTITLE eq DDMC Bot Server" >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 echo.
@@ -47,7 +69,7 @@ timeout /t 2 /nobreak >nul
 
 echo.
 echo [5/5] 봇 서버 실행 (새 창)...
-start "DDMC Bot Server" cmd /k "call run_bot.bat"
+start "DDMC Bot Server" cmd /c "call run_bot.bat"
 
 echo.
 echo ========================================

@@ -967,8 +967,8 @@ async def handle_recommendation_logic(
         ]
         return get_final_kakao_response(random.choice(praise_messages))
 
-    # [관리자 기능] 가게목록 조회 - "지존마스터 가게목록" 명령어
-    if ("지존마스터" in utterance or "지존" in utterance) and ("가게목록" in utterance or "가게 목록" in utterance):
+    # [관리자 기능] 가게목록 조회 - "가게목록" 또는 "지존마스터 가게목록" 명령어
+    if "가게목록" in utterance or "가게 목록" in utterance:
         try:
             logger.info(f"🏪 Admin: Restaurant List Requested - utterance='{utterance}'")
             import lunch_data

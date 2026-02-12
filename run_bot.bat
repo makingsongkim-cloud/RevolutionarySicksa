@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title DDMC Bot Server Runner
+title DDMC Bot Server
 
 echo ========================================
 echo [INFO] 점심 추천 봇 서버 실행 준비
@@ -17,8 +17,6 @@ if not exist .env (
     echo [SETUP] .env 파일 생성 완료!
     echo.
 )
-
-pause
 
 REM 1. Python 감지
 set PYTHON_CMD=python
