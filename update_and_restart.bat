@@ -12,11 +12,8 @@ echo [1/4] Git Pull (최신 코드 받기)...
 git pull origin main
 if %ERRORLEVEL% neq 0 (
     echo.
-    echo ⚠️ [WARN] Git Pull 중 경고 또는 오류가 발생했습니다.
-    echo 이미 'git reset --hard'를 하셨다면 무시하셔도 됩니다.
-    echo 계속 진행하시겠습니까? (Y/N)
-    set /p "CHOICE=입력: "
-    if /i "!CHOICE!" neq "Y" exit /b 1
+    echo ⚠️ [WARN] Git Pull 중 경고가 발생했으나 계속 진행합니다.
+    echo (이미 최신이거나 사소한 경고일 수 있습니다.)
 )
 
 echo.
