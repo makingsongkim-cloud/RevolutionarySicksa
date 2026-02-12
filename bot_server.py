@@ -990,10 +990,8 @@ async def handle_recommendation_logic(
             logger.info("✅ 가게목록 전송 완료")
             return get_final_kakao_response(list_text.strip())
         except Exception as e:
-            logger.error(f"❌ 가게목록 조회 실패: {e}")
-            import traceback
-            traceback.print_exc()
-            return get_final_kakao_response(f"❌ 오류 발생: {str(e)}")
+            logger.exception(f"🏪 Admin: Restaurant List Query Failed - Full traceback and error details")
+            return get_final_kakao_response("❌ 오류가 발생했습니다. 관리자에게 문의하세요.")
 
     # 2. Rate Limiting
     is_allowed, deny_reason = rate_limiter.is_allowed(user_id)
@@ -1447,7 +1445,8 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
 
         # 추천 로직 (기존과 동일하지만 멘트 생성은 build_varied_recommendation 사용)
     except Exception as e:
-        logger.warning(f"🚨 Fallback Emergency Handler Failed: {e}")
+        logger.exception(f"🚨 Fallback Emergency Handler Failed - Critical error in fallback logic")
+        return get_final_kakao_response("죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
 
     # [추천 엔진 호출]
     # excluded_menus = session_manager.get_excluded_menus(user_id) # Assuming this is defined elsewhere or intended to be added

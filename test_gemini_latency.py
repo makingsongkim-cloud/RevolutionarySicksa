@@ -1,16 +1,19 @@
 
 import os
+import sys
 import time
 import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
+if not api_key or not api_key.strip():
+    raise ValueError("GEMINI_API_KEY environment variable is not set or is empty")
 genai.configure(api_key=api_key)
 
 start_time = time.time()
 try:
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     response = model.generate_content("Hello, simple response.")
     end_time = time.time()
     print(f"Response: {response.text}")

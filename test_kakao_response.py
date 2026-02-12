@@ -15,7 +15,7 @@ bot_server.r = MagicMock()
 bot_server.r.menus = [{"name": "TestMenu", "area": "TestArea", "tags": ["soup"], "category": "TestCat"}]
 # Mock History Manager
 bot_server.r.history_mgr = MagicMock()
-bot_server.r.history_mgr.save_history = MagicMock()
+bot_server.r.history_mgr.save_record = MagicMock()
 
 # Mock Session Manager
 bot_server.session_manager.get_last_recommendation = MagicMock(return_value={"name": "TestMenu", "tags": ["soup"], "category": "TestCat", "area": "TestArea"})
