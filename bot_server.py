@@ -967,6 +967,34 @@ async def handle_recommendation_logic(
         ]
         return get_final_kakao_response(random.choice(praise_messages))
 
+    # [관리자 기능] 가게목록 조회 - "지존마스터 가게목록" 명령어
+    if ("지존마스터" in utterance or "지존" in utterance) and ("가게목록" in utterance or "가게 목록" in utterance):
+        try:
+            logger.info(f"🏪 Admin: Restaurant List Requested - utterance='{utterance}'")
+            import lunch_data
+
+            menus_by_area = lunch_data.get_menus_by_area()
+            total_count = sum(len(menus) for menus in menus_by_area.values())
+            logger.info(f"📊 총 {total_count}개의 가게를 로드했습니다.")
+
+            list_text = f"📋 **식당 목록** (총 {total_count}개)\n\n"
+
+            for area in sorted(menus_by_area.keys()):
+                menus = menus_by_area[area]
+                list_text += f"🏢 **{area}**\n"
+                for idx, menu in enumerate(menus, 1):
+                    category = menu.get('category', '기타')
+                    list_text += f"{idx}. {menu['name']} ({category})\n"
+                list_text += "\n"
+
+            logger.info("✅ 가게목록 전송 완료")
+            return get_final_kakao_response(list_text.strip())
+        except Exception as e:
+            logger.error(f"❌ 가게목록 조회 실패: {e}")
+            import traceback
+            traceback.print_exc()
+            return get_final_kakao_response(f"❌ 오류 발생: {str(e)}")
+
     # 2. Rate Limiting
     is_allowed, deny_reason = rate_limiter.is_allowed(user_id)
     if not is_allowed:
@@ -1418,6 +1446,9 @@ def get_emergency_fallback_response(reason: str, utterance: str = "", user_id: s
                 return get_final_kakao_response("아직 제가 아무것도 추천드리지 않았네요! 😊 맛있는 메뉴 하나 골라드릴까요?")
 
         # 추천 로직 (기존과 동일하지만 멘트 생성은 build_varied_recommendation 사용)
+    except Exception as e:
+        logger.warning(f"🚨 Fallback Emergency Handler Failed: {e}")
+
     # [추천 엔진 호출]
     # excluded_menus = session_manager.get_excluded_menus(user_id) # Assuming this is defined elsewhere or intended to be added
     excluded_menus = [] # Placeholder to prevent NameError, as it's not defined in the provided context.

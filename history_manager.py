@@ -25,7 +25,7 @@ class LunchHistory:
         if not os.path.exists(self.filepath):
             with open(self.filepath, mode='w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(["date", "menu_name", "area", "category", "user"])
+                writer.writerow(["date", "menu_name", "area", "category", "episode", "user"])
 
     def load_history(self):
         """전체 기록을 리스트로 반환"""
@@ -37,7 +37,7 @@ class LunchHistory:
                 if not lines: return []
                 
                 header = lines[0].strip().split(',')
-                if "user" not in header: # Old format migration on read
+                if "user" not in header or "episode" not in header: # Old format migration on read
                      # Simple strategy: treat all old records as "Master"
                      pass 
 
@@ -46,19 +46,22 @@ class LunchHistory:
                 reader = csv.DictReader(f)
                 for row in reader:
                     if 'user' not in row: row['user'] = "Master" # Default for old data
+                    if 'episode' not in row: row['episode'] = ""
                     history.append(row)
         return history
 
-    def save_record(self, menu_name, area, category, user="Master"):
+    def save_record(self, menu_name, area, category, user="Master", record_date=None, episode=None):
         """오늘 날짜로 메뉴 기록 저장"""
         today = datetime.now().strftime("%Y-%m-%d")
+        target_date = record_date if record_date else today
+        episode_value = episode if episode else ""
         
         # Check if header needs update (migration)
         self._check_and_migrate_header()
             
         with open(self.filepath, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow([today, menu_name, area, category, user])
+            writer.writerow([target_date, menu_name, area, category, episode_value, user])
 
     def _check_and_migrate_header(self):
         """헤더에 user 컬럼 없으면 추가 (Migration)"""
@@ -67,7 +70,7 @@ class LunchHistory:
         with open(self.filepath, 'r', encoding='utf-8') as f:
             first_line = f.readline().strip()
         
-        if "user" not in first_line:
+        if "user" not in first_line or "episode" not in first_line:
              # Read all, add user column, rewrite
              with open(self.filepath, 'r', encoding='utf-8') as f:
                  reader = csv.DictReader(f)
@@ -75,9 +78,16 @@ class LunchHistory:
              
              with open(self.filepath, 'w', newline='', encoding='utf-8') as f:
                  writer = csv.writer(f)
-                 writer.writerow(["date", "menu_name", "area", "category", "user"])
+                 writer.writerow(["date", "menu_name", "area", "category", "episode", "user"])
                  for r in rows:
-                     writer.writerow([r['date'], r['menu_name'], r['area'], r['category'], "Master"])
+                     writer.writerow([
+                         r.get('date', ''),
+                         r.get('menu_name', ''),
+                         r.get('area', ''),
+                         r.get('category', ''),
+                         r.get('episode', ''),
+                         r.get('user', 'Master')
+                     ])
     
     def get_recent_menus(self, days=2, user="Master"):
         """최근 N일간 먹은 메뉴 이름 세트 반환 (사용자별)"""
@@ -155,36 +165,37 @@ class LunchHistory:
         if not os.path.exists(self.filepath):
             return False
 
-        lines = []
-        with open(self.filepath, mode='r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        if len(lines) <= 1: return False
-            
-        if len(lines) <= 1: return False
-            
-        # 역순으로 탐색하여 해당 사용자의 오늘 기록 중 '가장 마지막' 하나만 삭제
+        with open(self.filepath, mode='r', encoding='utf-8', newline='') as f:
+            reader = list(csv.reader(f))
+
+        if len(reader) <= 1:
+            return False
+
+        header = reader[0]
+        try:
+            date_idx = header.index("date")
+            user_idx = header.index("user")
+        except ValueError:
+            return False
+
         today_str = datetime.now().strftime("%Y-%m-%d")
         target_index = -1
-        
-        for i in range(len(lines) - 1, 0, -1): # 헤더(0) 제외하고 뒤에서부터
-            line = lines[i].strip()
-            if not line: continue
-            
-            parts = line.split(',')
-            if len(parts) >= 1:
-                r_date = parts[0]
-                # 사용자 확인 (구형 포맷 호환)
-                r_user = parts[4] if len(parts) >= 5 else "Master"
-                
-                if r_date == today_str and r_user == user:
-                    target_index = i
-                    break
-        
+
+        for i in range(len(reader) - 1, 0, -1):
+            row = reader[i]
+            if not row or len(row) <= max(date_idx, user_idx):
+                continue
+            r_date = row[date_idx]
+            r_user = row[user_idx]
+            if r_date == today_str and r_user == user:
+                target_index = i
+                break
+
         if target_index != -1:
-            del lines[target_index]
-            with open(self.filepath, mode='w', encoding='utf-8') as f:
-                f.writelines(lines)
+            del reader[target_index]
+            with open(self.filepath, mode='w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerows(reader)
             return True
             
         return False
@@ -194,7 +205,7 @@ class LunchHistory:
         try:
             with open(self.filepath, mode='w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(["date", "menu_name", "area", "category", "user"])
+                writer.writerow(["date", "menu_name", "area", "category", "episode", "user"])
             return True
         except:
             return False
@@ -215,6 +226,8 @@ class LunchHistory:
         records = self.get_records(days=days, user=user)
         logs = []
         for r in records:
-            log_str = f"{r.get('date')} | {r.get('menu_name')} ({r.get('category')}) - {r.get('area')}"
+            episode = r.get('episode')
+            ep_part = f" | {episode}회" if episode else ""
+            log_str = f"{r.get('date')}{ep_part} | {r.get('menu_name')} ({r.get('category')}) - {r.get('area')}"
             logs.append(log_str)
         return logs

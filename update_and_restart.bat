@@ -10,6 +10,16 @@ echo [1/4] Git Pull (최신 코드 받기)...
 git pull
 
 echo.
+echo [1.5/4] 메뉴 파일 동기화 (%USERPROFILE%\.lunch_siksa\menus.json)...
+if not exist "%USERPROFILE%\.lunch_siksa\" mkdir "%USERPROFILE%\.lunch_siksa\"
+if exist menus.json (
+    copy /Y menus.json "%USERPROFILE%\.lunch_siksa\menus.json"
+    echo   [OK] 메뉴 파일 업데이트 완료!
+) else (
+    echo   [WARN] menus.json을 찾을 수 없습니다.
+)
+
+echo.
 echo [2/4] .env 파일 확인...
 if not exist .env (
     echo   [SETUP] .env 파일이 없습니다. 자동 생성 중...
@@ -23,12 +33,22 @@ if not exist .env (
 )
 
 echo.
-echo [3/4] Ngrok 터널 실행...
-start "Ngrok Tunnel" call run_ngrok.bat
+echo [3/4] 기존 프로세스 종료...
+REM Ngrok 및 Bot 프로세스 종료
+taskkill /F /IM ngrok.exe >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8000.*LISTEN"') do (
+    echo   - 포트 8000 사용 중인 프로세스(PID %%a) 종료
+    taskkill /F /pid %%a >nul 2>&1
+)
 timeout /t 1 /nobreak >nul
 
 echo.
-echo [4/4] 봇 서버 실행 (새 창)...
+echo [4/4] Ngrok 터널 실행...
+start "Ngrok Tunnel" call run_ngrok.bat
+timeout /t 2 /nobreak >nul
+
+echo.
+echo [5/5] 봇 서버 실행 (새 창)...
 start "DDMC Bot Server" cmd /k "call run_bot.bat"
 
 echo.

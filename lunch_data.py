@@ -193,3 +193,14 @@ def refresh_menus():
     """메뉴 다시 로드 (추가 후 호출용)"""
     global MENUS
     MENUS = load_menus()
+
+def get_menus_by_area():
+    """지역별로 그룹화된 가게 목록 반환"""
+    menus = load_menus()
+    grouped = {}
+    for menu in menus:
+        area = menu.get('area', '기타')
+        if area not in grouped:
+            grouped[area] = []
+        grouped[area].append(menu)
+    return grouped

@@ -4,6 +4,7 @@ import recommender
 from history_manager import LunchHistory
 import pandas as pd
 import time
+from datetime import datetime
 
 # Page Config
 st.set_page_config(
@@ -614,6 +615,12 @@ with tab4:
     menu_names.insert(0, "직접 입력 (메뉴판에 없음)")
     
     selected_manual = st.selectbox("어떤 걸 드셨나요?", menu_names)
+
+    col_d1, col_d2 = st.columns([1, 1])
+    with col_d1:
+        manual_date = st.date_input("날짜", value=datetime.now().date())
+    with col_d2:
+        episode_num = st.number_input("프로그램 회차", min_value=0, step=1, value=0, help="회차가 없으면 0으로 두세요.")
     
     final_name = ""
     final_area = "외부/기타"
@@ -638,7 +645,16 @@ with tab4:
 
     if st.button("기록 저장하기"):
         if final_name:
-            st.session_state.history.save_record(final_name, final_area, final_cat, user=nickname)
+            record_date = manual_date.strftime("%Y-%m-%d") if manual_date else None
+            episode_value = str(episode_num) if episode_num and episode_num > 0 else ""
+            st.session_state.history.save_record(
+                final_name,
+                final_area,
+                final_cat,
+                user=nickname,
+                record_date=record_date,
+                episode=episode_value
+            )
             st.success(f"'{final_name}' 기록이 저장되었습니다!")
             time.sleep(1)
             st.rerun()
@@ -675,4 +691,3 @@ if tab5:
             df_menus = pd.DataFrame(menus)
             st.dataframe(df_menus, use_container_width=True)
             st.caption(f"총 {len(menus)}개의 맛집 데이터가 있습니다.")
-

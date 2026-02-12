@@ -140,7 +140,7 @@ class LunchRecommender:
         # 여기서는 이미 갱신된 lunch_data.MENUS를 다시 바인딩
         self.menus = lunch_data.MENUS
 
-    def recommend(self, weather=None, cuisine_filters=None, mood=None, excluded_menus=None, **kwargs):
+    def recommend(self, user="Master", weather=None, cuisine_filters=None, mood=None, excluded_menus=None, **kwargs):
         """
         추천 로직:
         1. 최근 먹은 메뉴(2일 내) 제외
@@ -155,8 +155,8 @@ class LunchRecommender:
         if not hasattr(self, 'menus'):
             self.refresh_data()
             
-        # 1. 필터링 (최근 먹은 것 제외)
-        recent_eaten = self.history_mgr.get_recent_menus(days=2)
+        # 1. 필터링 (최근 먹은 것 제외) - [FIX] 사용자별 히스토리 적용
+        recent_eaten = self.history_mgr.get_recent_menus(days=2, user=user)
         
         # 제외 목록 통합
         final_excluded = set(recent_eaten)
